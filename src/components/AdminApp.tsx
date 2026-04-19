@@ -521,15 +521,15 @@ export function AdminApp() {
                 const draft = paymentDrafts[customer.id] || defaultPaymentDraft;
                 return (
                   <tr key={customer.id}>
-                    <td>
+                    <td data-label="客户">
                       <strong>{customer.displayName}</strong>
                       <small>{customer.qq || "未填 QQ"} · {customer.groupName || "未分组"}</small>
                       {customer.notes ? <small className="note-line">{customer.notes}</small> : null}
                     </td>
-                    <td>
+                    <td data-label="状态">
                       <span className={`badge ${status}`}>{statusLabel(status)}</span>
                     </td>
-                    <td>
+                    <td data-label="到期">
                       <input
                         type="date"
                         value={dateInputValue(customer.expiresAt)}
@@ -539,11 +539,11 @@ export function AdminApp() {
                       />
                       <small>{expiryHint(customer, status)}</small>
                     </td>
-                    <td>
+                    <td data-label="获取次数">
                       <strong>{customer.subscriptionClicks}</strong>
                       <small>{customer.lastSubscriptionClickAt ? formatDateTime(customer.lastSubscriptionClickAt) : "未获取"}</small>
                     </td>
-                    <td>
+                    <td data-label="续费">
                       <div className="payment-row">
                         <input
                           inputMode="decimal"
@@ -573,7 +573,7 @@ export function AdminApp() {
                         </button>
                       </div>
                     </td>
-                    <td>
+                    <td data-label="操作">
                       <div className="button-row">
                         <button
                           type="button"

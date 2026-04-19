@@ -692,3 +692,188 @@ td input {
     flex: 1;
   }
 }
+
+@media (max-width: 640px) {
+  h1 {
+    font-size: 24px;
+  }
+
+  h2 {
+    font-size: 18px;
+  }
+
+  .shell {
+    width: min(100% - 20px, 1220px);
+    padding: 18px 0 32px;
+  }
+
+  .shell-narrow {
+    width: min(100% - 20px, 680px);
+    align-items: start;
+  }
+
+  .login-panel,
+  .user-panel,
+  .empty-state {
+    padding: 24px 18px;
+  }
+
+  .login-panel h1 {
+    font-size: 30px;
+  }
+
+  .topbar {
+    margin-bottom: 14px;
+  }
+
+  .topbar .ghost,
+  .quick-actions button,
+  .portal-head .ghost {
+    width: 100%;
+  }
+
+  .quick-actions,
+  .portal-head,
+  .status-line,
+  .button-row,
+  .button-row.wide {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .primary,
+  .secondary,
+  .ghost,
+  .danger {
+    width: 100%;
+    min-height: 44px;
+  }
+
+  .icon-button {
+    width: 44px;
+  }
+
+  .metrics-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+  }
+
+  .metrics-grid article {
+    padding: 14px;
+  }
+
+  .metrics-grid strong {
+    font-size: 24px;
+  }
+
+  .table-section,
+  .panel {
+    padding: 16px;
+  }
+
+  .admin-toolbar {
+    gap: 10px;
+  }
+
+  .segmented-control {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .segmented-control button {
+    min-width: 0;
+    padding: 8px 6px;
+  }
+
+  .table-wrap {
+    overflow: visible;
+  }
+
+  table,
+  thead,
+  tbody,
+  tr,
+  th,
+  td {
+    display: block;
+    width: 100%;
+  }
+
+  table {
+    min-width: 0;
+    border-collapse: separate;
+    border-spacing: 0 12px;
+  }
+
+  thead {
+    display: none;
+  }
+
+  tbody tr {
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: #fff;
+    padding: 12px;
+  }
+
+  td {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 6px;
+    align-items: start;
+    border-bottom: 0;
+    padding: 8px 0;
+  }
+
+  td::before {
+    content: attr(data-label);
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 700;
+    padding-top: 0;
+  }
+
+  td input {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+  }
+
+  .payment-row {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .payment-row button {
+    grid-column: 1 / -1;
+  }
+
+  .empty-cell {
+    display: block;
+  }
+
+  .empty-cell::before {
+    content: "";
+  }
+
+  .recent-payments div {
+    grid-template-columns: 1fr;
+    gap: 6px;
+    padding: 14px 0;
+  }
+
+  .recent-payments button {
+    width: 100%;
+  }
+
+  .subscription-box {
+    grid-template-columns: 1fr;
+  }
+
+  .subscription-box .icon-button {
+    width: 100%;
+  }
+
+  .pay-box {
+    padding: 12px;
+  }
+}
