@@ -77,7 +77,7 @@ function Send-Bark {
 
   $encodedTitle = [Uri]::EscapeDataString($Title)
   $encodedBody = [Uri]::EscapeDataString($Body)
-  $url = "$script:BarkBaseUrl/$encodedTitle/$encodedBody?group=PaySys&isArchive=1"
+  $url = "{0}/{1}/{2}?group=PaySys&isArchive=1" -f $script:BarkBaseUrl, $encodedTitle, $encodedBody
 
   try {
     Invoke-WebRequest -Uri $url -UseBasicParsing -TimeoutSec 20 | Out-Null
