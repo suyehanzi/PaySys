@@ -435,11 +435,8 @@ small {
   color: var(--green);
 }
 
-.badge.expired {
-  background: var(--soft-amber);
-  color: var(--amber);
-}
-
+.badge.expired,
+.badge.unpaid,
 .badge.disabled {
   background: var(--soft-red);
   color: var(--red);

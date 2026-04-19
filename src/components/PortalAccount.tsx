@@ -14,6 +14,26 @@ export function PortalAccount({ customer, status }: { customer: Customer; status
   const [qrDataUrl, setQrDataUrl] = useState("");
 
   const active = status === "active";
+  const inactiveMessage =
+    status === "unpaid"
+      ? "未登记付款，请付款后联系管理员开通。"
+      : status === "expired"
+        ? "已过期，请续费后联系管理员恢复。"
+        : "订阅已被管理员禁用。";
+
+  function subscriptionUrlFromResponse(body: { subscriptionPath?: string; subscriptionUrl?: string }): string {
+    const fallbackPath = `/sub/${customer.token}`;
+    const path = body.subscriptionPath || (() => {
+      try {
+        return body.subscriptionUrl ? new URL(body.subscriptionUrl).pathname : fallbackPath;
+      } catch {
+        return fallbackPath;
+      }
+    })();
+
+    return `${window.location.origin}${path}`;
+  }
+
   async function copySubscription() {
     setNotice("");
     const response = await fetch("/api/portal/subscription", { method: "POST" });
@@ -23,7 +43,7 @@ export function PortalAccount({ customer, status }: { customer: Customer; status
       return;
     }
 
-    const subscriptionUrl = body.subscriptionUrl as string;
+    const subscriptionUrl = subscriptionUrlFromResponse(body);
     setRevealedUrl(subscriptionUrl);
     if (!qrDataUrl) {
       setQrDataUrl(
@@ -96,7 +116,7 @@ export function PortalAccount({ customer, status }: { customer: Customer; status
           ) : active ? (
             <p className="muted-copy">点击页面下方“获取订阅”后显示二维码。</p>
           ) : (
-            <p className="error-text">已到期，请扫码付款后联系管理员开通。</p>
+            <p className="error-text">{inactiveMessage}</p>
           )}
           {!active ? (
             <div className="pay-box">

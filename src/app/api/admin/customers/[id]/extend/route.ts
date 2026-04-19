@@ -3,6 +3,7 @@ import { z } from "zod";
 import { isAdminRequest } from "@/lib/auth";
 import { extendCustomer, getCustomerById } from "@/lib/db";
 import { jsonError } from "@/lib/http";
+import { normalizePaymentInput } from "@/lib/payments";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -41,7 +42,7 @@ export async function POST(
   }
 
   try {
-    const result = extendCustomer({ customerId, ...parsed.data });
+    const result = extendCustomer({ customerId, ...normalizePaymentInput(parsed.data) });
     return NextResponse.json({ ok: true, ...result });
   } catch (error) {
     return jsonError(error instanceof Error ? error.message : "登记续费失败", 400);

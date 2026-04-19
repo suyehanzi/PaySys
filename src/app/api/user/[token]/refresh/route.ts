@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getCustomerByToken, getUpstreamStatus, logAccess } from "@/lib/db";
-import { isCustomerActive } from "@/lib/customer";
+import { getCustomerStatus } from "@/lib/customer";
 import { clientIp, jsonError, userAgent } from "@/lib/http";
 import { refreshUpstreamAutomatically } from "@/lib/upstream";
 
@@ -24,8 +24,11 @@ export async function POST(
     userAgent: userAgent(request),
   });
 
-  if (!isCustomerActive(customer)) {
-    return jsonError(customer.disabled ? "订阅已禁用" : "订阅已过期", 403);
+  const status = getCustomerStatus(customer);
+  if (status !== "active") {
+    const message =
+      status === "disabled" ? "订阅已禁用" : status === "unpaid" ? "订阅未开通，请联系管理员登记" : "订阅已过期";
+    return jsonError(message, 403);
   }
 
   try {

@@ -1,10 +1,11 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { Icon } from "@/components/Icon";
 import { copyToClipboard } from "@/lib/clipboard";
 import { dateInputValue, formatDateTime } from "@/lib/dates";
 import { getCustomerStatus, remainingDays } from "@/lib/customer";
+import { DEFAULT_PAYMENT_AMOUNT, DEFAULT_PAYMENT_PERIOD_DAYS } from "@/lib/payments";
 import type { Customer, Payment, UpstreamStatus } from "@/lib/db";
 
 type AdminState = {
@@ -22,9 +23,14 @@ type PaymentDraft = {
   notes: string;
 };
 
-type StatusFilter = "all" | "active" | "expired" | "disabled";
+type StatusFilter = "all" | "active" | "unpaid" | "expired" | "disabled";
 
 const defaultGroupOptions = ["1群", "2群"];
+const defaultPaymentDraft: PaymentDraft = {
+  amount: String(DEFAULT_PAYMENT_AMOUNT),
+  periodDays: String(DEFAULT_PAYMENT_PERIOD_DAYS),
+  notes: "",
+};
 
 const initialCustomerForm = {
   displayName: "",
@@ -37,6 +43,23 @@ function defaultDate(days: number) {
   const date = new Date();
   date.setDate(date.getDate() + days);
   return dateInputValue(date.toISOString());
+}
+
+function statusLabel(status: StatusFilter) {
+  if (status === "active") return "正常";
+  if (status === "unpaid") return "未登记";
+  if (status === "expired") return "过期";
+  if (status === "disabled") return "禁用";
+  return "全部";
+}
+
+function expiryHint(customer: Customer, status: StatusFilter) {
+  if (status === "disabled") return "已禁用";
+  if (status === "unpaid") return "未登记付款";
+  if (status === "expired") return "过期7天+";
+
+  const days = remainingDays(customer.expiresAt);
+  return days > 0 ? `剩 ${days} 天` : "宽限期内";
 }
 
 async function readJson<T>(response: Response): Promise<T & { ok?: boolean; error?: string }> {
@@ -72,6 +95,7 @@ export function AdminApp() {
   const [customerSearch, setCustomerSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [showCreateCustomer, setShowCreateCustomer] = useState(false);
+  const paymentInFlight = useRef(new Set<number>());
 
   const counts = useMemo(() => {
     const customers = state?.customers || [];
@@ -83,6 +107,7 @@ export function AdminApp() {
     return {
       total: customers.length,
       active: customers.filter((customer) => getCustomerStatus(customer) === "active").length,
+      unpaid: customers.filter((customer) => getCustomerStatus(customer) === "unpaid").length,
       expired: customers.filter((customer) => getCustomerStatus(customer) === "expired").length,
       disabled: customers.filter((customer) => getCustomerStatus(customer) === "disabled").length,
       dueSoon,
@@ -213,20 +238,30 @@ export function AdminApp() {
   }
 
   async function extendCustomer(id: number) {
-    const draft = paymentDrafts[id] || { amount: "0", periodDays: "30", notes: "" };
+    if (paymentInFlight.current.has(id)) {
+      return;
+    }
+    paymentInFlight.current.add(id);
+    const draft = paymentDrafts[id] || defaultPaymentDraft;
+    const paymentPayload = {
+      ...draft,
+      amount: draft.amount.trim() || defaultPaymentDraft.amount,
+      periodDays: draft.periodDays.trim() || defaultPaymentDraft.periodDays,
+    };
     setBusy(`extend-${id}`);
     try {
       await readJson(await fetch(`/api/admin/customers/${id}/extend`, {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify(draft),
+        body: JSON.stringify(paymentPayload),
       }));
-      setPaymentDrafts((current) => ({ ...current, [id]: { amount: "45", periodDays: "180", notes: "" } }));
+      setPaymentDrafts((current) => ({ ...current, [id]: defaultPaymentDraft }));
       setNotice("续费已登记");
       await loadState();
     } catch (error) {
       setNotice(error instanceof Error ? error.message : "登记续费失败");
     } finally {
+      paymentInFlight.current.delete(id);
       setBusy("");
     }
   }
@@ -284,7 +319,7 @@ export function AdminApp() {
   function updateDraft(id: number, patch: Partial<PaymentDraft>) {
     setPaymentDrafts((current) => ({
       ...current,
-      [id]: { ...(current[id] || { amount: "0", periodDays: "30", notes: "" }), ...patch },
+      [id]: { ...(current[id] || defaultPaymentDraft), ...patch },
     }));
   }
 
@@ -402,11 +437,15 @@ export function AdminApp() {
           <strong>{counts.active}</strong>
         </article>
         <article>
+          <span>未登记</span>
+          <strong>{counts.unpaid}</strong>
+        </article>
+        <article>
           <span>7天内到期</span>
           <strong>{counts.dueSoon}</strong>
         </article>
         <article>
-          <span>已过期</span>
+          <span>过期7天+</span>
           <strong>{counts.expired}</strong>
         </article>
         <article>
@@ -448,6 +487,7 @@ export function AdminApp() {
             {[
               ["all", "全部"],
               ["active", "正常"],
+              ["unpaid", "未登记"],
               ["expired", "过期"],
               ["disabled", "禁用"],
             ].map(([value, label]) => (
@@ -477,9 +517,8 @@ export function AdminApp() {
             <tbody>
               {filteredCustomers.map((customer) => {
                 const status = getCustomerStatus(customer);
-                const days = remainingDays(customer.expiresAt);
                 const locked = customer.disabled;
-                const draft = paymentDrafts[customer.id] || { amount: "45", periodDays: "180", notes: "" };
+                const draft = paymentDrafts[customer.id] || defaultPaymentDraft;
                 return (
                   <tr key={customer.id}>
                     <td>
@@ -488,7 +527,7 @@ export function AdminApp() {
                       {customer.notes ? <small className="note-line">{customer.notes}</small> : null}
                     </td>
                     <td>
-                      <span className={`badge ${status}`}>{status === "active" ? "正常" : status === "expired" ? "过期" : "禁用"}</span>
+                      <span className={`badge ${status}`}>{statusLabel(status)}</span>
                     </td>
                     <td>
                       <input
@@ -498,9 +537,7 @@ export function AdminApp() {
                         aria-label={`${customer.displayName} 到期日期`}
                         disabled={locked}
                       />
-                      <small>
-                        {status === "active" ? `剩 ${days} 天` : status === "expired" ? "已过期" : "已禁用"}
-                      </small>
+                      <small>{expiryHint(customer, status)}</small>
                     </td>
                     <td>
                       <strong>{customer.subscriptionClicks}</strong>

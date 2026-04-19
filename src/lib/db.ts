@@ -18,6 +18,7 @@ export type Customer = {
   updatedAt: string;
   subscriptionClicks: number;
   lastSubscriptionClickAt: string | null;
+  paymentCount: number;
 };
 
 export type Payment = {
@@ -56,6 +57,7 @@ type CustomerRow = {
   updated_at: string;
   subscription_clicks?: number;
   last_subscription_click_at?: string | null;
+  payment_count?: number;
 };
 
 type PaymentRow = {
@@ -193,6 +195,7 @@ function mapCustomer(row: CustomerRow): Customer {
     updatedAt: row.updated_at,
     subscriptionClicks: row.subscription_clicks || 0,
     lastSubscriptionClickAt: row.last_subscription_click_at || null,
+    paymentCount: row.payment_count || 0,
   };
 }
 
@@ -221,13 +224,24 @@ export function listCustomers(): Customer[] {
     .prepare(
       `SELECT
         customers.*,
-        COALESCE(COUNT(access_logs.id), 0) AS subscription_clicks,
-        MAX(access_logs.created_at) AS last_subscription_click_at
+        COALESCE((
+          SELECT COUNT(*)
+          FROM access_logs
+          WHERE access_logs.customer_id = customers.id
+            AND access_logs.action = 'portal_get_subscription'
+        ), 0) AS subscription_clicks,
+        (
+          SELECT MAX(access_logs.created_at)
+          FROM access_logs
+          WHERE access_logs.customer_id = customers.id
+            AND access_logs.action = 'portal_get_subscription'
+        ) AS last_subscription_click_at,
+        COALESCE((
+          SELECT COUNT(*)
+          FROM payments
+          WHERE payments.customer_id = customers.id
+        ), 0) AS payment_count
        FROM customers
-       LEFT JOIN access_logs
-         ON access_logs.customer_id = customers.id
-        AND access_logs.action = 'portal_get_subscription'
-       GROUP BY customers.id
        ORDER BY customers.disabled ASC, customers.expires_at ASC, customers.id DESC`,
     )
     .all() as CustomerRow[];
@@ -235,21 +249,57 @@ export function listCustomers(): Customer[] {
 }
 
 export function getCustomerById(id: number): Customer | null {
-  const row = getDb().prepare("SELECT * FROM customers WHERE id = ?").get(id) as CustomerRow | undefined;
+  const row = getDb()
+    .prepare(
+      `SELECT
+        customers.*,
+        COALESCE((
+          SELECT COUNT(*)
+          FROM payments
+          WHERE payments.customer_id = customers.id
+        ), 0) AS payment_count
+       FROM customers
+       WHERE customers.id = ?`,
+    )
+    .get(id) as CustomerRow | undefined;
   return row ? mapCustomer(row) : null;
 }
 
 export function getCustomerByToken(token: string): Customer | null {
-  const row = getDb().prepare("SELECT * FROM customers WHERE token = ?").get(token) as CustomerRow | undefined;
+  const row = getDb()
+    .prepare(
+      `SELECT
+        customers.*,
+        COALESCE((
+          SELECT COUNT(*)
+          FROM payments
+          WHERE payments.customer_id = customers.id
+        ), 0) AS payment_count
+       FROM customers
+       WHERE customers.token = ?`,
+    )
+    .get(token) as CustomerRow | undefined;
   return row ? mapCustomer(row) : null;
 }
 
 export function getCustomerByQq(qq: string): Customer | null {
   const normalized = qq.trim();
   if (!normalized) return null;
-  const row = getDb().prepare("SELECT * FROM customers WHERE qq = ? ORDER BY id DESC LIMIT 1").get(normalized) as
-    | CustomerRow
-    | undefined;
+  const row = getDb()
+    .prepare(
+      `SELECT
+        customers.*,
+        COALESCE((
+          SELECT COUNT(*)
+          FROM payments
+          WHERE payments.customer_id = customers.id
+        ), 0) AS payment_count
+       FROM customers
+       WHERE customers.qq = ?
+       ORDER BY customers.id DESC
+       LIMIT 1`,
+    )
+    .get(normalized) as CustomerRow | undefined;
   return row ? mapCustomer(row) : null;
 }
 
@@ -326,6 +376,22 @@ export function extendCustomer(input: {
   if (!current) {
     throw new Error("客户不存在");
   }
+  const notes = input.notes?.trim() || "";
+  const latestPayment = db
+    .prepare("SELECT * FROM payments WHERE customer_id = ? ORDER BY paid_at DESC, id DESC LIMIT 1")
+    .get(input.customerId) as PaymentRow | undefined;
+  if (
+    latestPayment &&
+    latestPayment.new_expires_at === current.expiresAt &&
+    latestPayment.period_days === input.periodDays &&
+    latestPayment.amount === input.amount &&
+    (latestPayment.notes || "") === notes
+  ) {
+    const latestPaidAt = new Date(latestPayment.paid_at).getTime();
+    if (Number.isFinite(latestPaidAt) && Date.now() - latestPaidAt <= 60_000) {
+      throw new Error("刚刚已登记过同一笔续费，请刷新确认，避免重复延长到期时间");
+    }
+  }
 
   const baseMs = Math.max(new Date(current.expiresAt).getTime(), Date.now());
   const baseDate = Number.isFinite(baseMs) ? new Date(baseMs) : new Date();
@@ -345,7 +411,7 @@ export function extendCustomer(input: {
         input.amount,
         paidAt,
         input.periodDays,
-        input.notes?.trim() || "",
+        notes,
         current.expiresAt,
         nextExpiresAt,
       );

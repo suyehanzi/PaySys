@@ -2,7 +2,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { isCustomerActive } from "@/lib/customer";
+import { getCustomerStatus, isCustomerActive } from "@/lib/customer";
 
 let tempDir = "";
 let db: typeof import("@/lib/db");
@@ -25,16 +25,39 @@ describe("customer database", () => {
     fs.rmSync(tempDir, { recursive: true, force: true });
   });
 
-  it("allows active customers and rejects expired or disabled customers", () => {
+  it("requires payment registration and keeps a seven day expiry grace", () => {
     const future = new Date(Date.now() + 60_000).toISOString();
-    const past = new Date(Date.now() - 60_000).toISOString();
-    const active = db.createCustomer({ displayName: "张三", expiresAt: future });
-    const expired = db.createCustomer({ displayName: "李四", expiresAt: past });
+    const unpaid = db.createCustomer({ displayName: "李四", expiresAt: future });
+    const active = db.extendCustomer({
+      customerId: db.createCustomer({ displayName: "张三", expiresAt: future }).id,
+      amount: 45,
+      periodDays: 180,
+    }).customer;
+    const graceCustomer = db.extendCustomer({
+      customerId: db.createCustomer({ displayName: "宽限", expiresAt: future }).id,
+      amount: 45,
+      periodDays: 180,
+    }).customer;
+    const withinGrace = db.updateCustomer(graceCustomer.id, {
+      expiresAt: new Date(Date.now() - 3 * 86_400_000).toISOString(),
+    })!;
+    const expiredCustomer = db.extendCustomer({
+      customerId: db.createCustomer({ displayName: "过期", expiresAt: future }).id,
+      amount: 45,
+      periodDays: 180,
+    }).customer;
+    const expired = db.updateCustomer(expiredCustomer.id, {
+      expiresAt: new Date(Date.now() - 8 * 86_400_000).toISOString(),
+    })!;
     const disabled = db.updateCustomer(active.id, { disabled: true })!;
 
-    expect(isCustomerActive(active)).toBe(true);
+    expect(getCustomerStatus(unpaid)).toBe("unpaid");
+    expect(getCustomerStatus(withinGrace)).toBe("active");
+    expect(getCustomerStatus(expired)).toBe("expired");
+    expect(getCustomerStatus(disabled)).toBe("disabled");
+    expect(isCustomerActive(unpaid)).toBe(false);
+    expect(isCustomerActive(withinGrace)).toBe(true);
     expect(isCustomerActive(expired)).toBe(false);
-    expect(isCustomerActive(disabled)).toBe(false);
   });
 
   it("resets a customer token and invalidates the old link", () => {
@@ -92,6 +115,15 @@ describe("customer database", () => {
     expect(new Date(result.customer.expiresAt).getTime()).toBeGreaterThan(new Date(currentExpiry).getTime());
   });
 
+  it("rejects accidental duplicate payment registration within a minute", () => {
+    const currentExpiry = new Date(Date.now() + 2 * 86_400_000).toISOString();
+    const customer = db.createCustomer({ displayName: "重复测试", expiresAt: currentExpiry });
+    const first = db.extendCustomer({ customerId: customer.id, amount: 45, periodDays: 180 });
+
+    expect(() => db.extendCustomer({ customerId: customer.id, amount: 45, periodDays: 180 })).toThrow("刚刚已登记");
+    expect(db.getCustomerById(customer.id)?.expiresAt).toBe(first.customer.expiresAt);
+  });
+
   it("rolls back the customer expiry when deleting the latest matching payment", () => {
     const currentExpiry = new Date(Date.now() + 2 * 86_400_000).toISOString();
     const customer = db.createCustomer({ displayName: "钱七", expiresAt: currentExpiry });
@@ -107,7 +139,7 @@ describe("customer database", () => {
     const currentExpiry = new Date(Date.now() + 2 * 86_400_000).toISOString();
     const customer = db.createCustomer({ displayName: "孙八", expiresAt: currentExpiry });
     const first = db.extendCustomer({ customerId: customer.id, amount: 45, periodDays: 180 });
-    const second = db.extendCustomer({ customerId: customer.id, amount: 45, periodDays: 180 });
+    const second = db.extendCustomer({ customerId: customer.id, amount: 45, periodDays: 180, notes: "二次登记" });
 
     const result = db.deletePayment(first.payment.id);
 

@@ -1,14 +1,21 @@
-export type CustomerStatus = "active" | "expired" | "disabled";
+export type CustomerStatus = "active" | "unpaid" | "expired" | "disabled";
 
 export type CustomerLike = {
   disabled: boolean;
   expiresAt: string;
+  paymentCount?: number;
 };
+
+const GRACE_DAYS_AFTER_EXPIRY = 7;
+const DAY_MS = 86_400_000;
 
 export function getCustomerStatus(customer: CustomerLike, now = new Date()): CustomerStatus {
   if (customer.disabled) return "disabled";
+  if ((customer.paymentCount || 0) <= 0) return "unpaid";
   const expiresAt = new Date(customer.expiresAt).getTime();
-  if (!Number.isFinite(expiresAt) || expiresAt <= now.getTime()) return "expired";
+  if (!Number.isFinite(expiresAt) || expiresAt + GRACE_DAYS_AFTER_EXPIRY * DAY_MS <= now.getTime()) {
+    return "expired";
+  }
   return "active";
 }
 

@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server";
-import { getCustomerById, logAccess } from "@/lib/db";
-import { isCustomerActive } from "@/lib/customer";
-import { clientIp, jsonError, userAgent } from "@/lib/http";
+import { getCustomerById, getUpstreamStatus, logAccess } from "@/lib/db";
+import { getCustomerStatus } from "@/lib/customer";
+import { clientIp, jsonError, publicOrigin, userAgent } from "@/lib/http";
 import { readCookie, USER_SESSION_COOKIE, verifyUserSessionValue } from "@/lib/user-auth";
+import { refreshUpstreamAutomatically } from "@/lib/upstream";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -28,13 +29,26 @@ export async function POST(request: Request): Promise<NextResponse> {
     userAgent: userAgent(request),
   });
 
-  if (!isCustomerActive(customer)) {
-    return jsonError(customer.disabled ? "订阅已禁用" : "订阅已过期", 403);
+  const status = getCustomerStatus(customer);
+  if (status !== "active") {
+    const message =
+      status === "disabled" ? "订阅已禁用" : status === "unpaid" ? "订阅未开通，请联系管理员登记" : "订阅已过期";
+    return jsonError(message, 403);
   }
 
-  const origin = new URL(request.url).origin;
+  if (!getUpstreamStatus().hasContent) {
+    try {
+      await refreshUpstreamAutomatically();
+    } catch {
+      return jsonError("订阅缓存为空，自动刷新失败，请联系管理员", 503);
+    }
+  }
+
+  const origin = publicOrigin(request);
+  const subscriptionPath = `/sub/${customer.token}`;
   return NextResponse.json({
     ok: true,
-    subscriptionUrl: `${origin}/sub/${customer.token}`,
+    subscriptionPath,
+    subscriptionUrl: `${origin}${subscriptionPath}`,
   });
 }

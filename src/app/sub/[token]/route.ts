@@ -1,6 +1,7 @@
 import { getCustomerByToken, getUpstreamContent, logAccess } from "@/lib/db";
-import { isCustomerActive } from "@/lib/customer";
+import { getCustomerStatus } from "@/lib/customer";
 import { clientIp, userAgent } from "@/lib/http";
+import { refreshUpstreamAutomatically } from "@/lib/upstream";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -54,11 +55,26 @@ export async function GET(
     userAgent: userAgent(request),
   });
 
-  if (!isCustomerActive(customer)) {
-    return text(customer.disabled ? "订阅已禁用" : "订阅已过期，请联系管理员续费", 403);
+  const status = getCustomerStatus(customer);
+  if (status !== "active") {
+    const message =
+      status === "disabled"
+        ? "订阅已禁用"
+        : status === "unpaid"
+          ? "订阅未开通，请联系管理员登记"
+          : "订阅已过期，请联系管理员续费";
+    return text(message, 403);
   }
 
-  const upstream = getUpstreamContent();
+  let upstream = getUpstreamContent();
+  if (!upstream.content) {
+    try {
+      await refreshUpstreamAutomatically();
+      upstream = getUpstreamContent();
+    } catch {
+      return text("订阅缓存为空，自动刷新失败，请联系管理员", 503);
+    }
+  }
   if (!upstream.content) {
     return text("订阅缓存为空，请先在个人页面刷新或联系管理员", 503);
   }

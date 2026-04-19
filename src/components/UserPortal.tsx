@@ -22,6 +22,14 @@ export function UserPortal({
   const [cache, setCache] = useState(upstream);
 
   const active = status === "active";
+  const statusText =
+    status === "active" ? "正常" : status === "unpaid" ? "未登记付款" : status === "expired" ? "已过期" : "已禁用";
+  const inactiveMessage =
+    status === "unpaid"
+      ? "未登记付款，请付款后联系管理员开通。"
+      : status === "expired"
+        ? "订阅已过期，请续费后让管理员恢复。"
+        : "订阅已被管理员禁用。";
   const subscriptionUrl = useMemo(() => {
     if (typeof window === "undefined") return `/sub/${customer.token}`;
     return `${window.location.origin}/sub/${customer.token}`;
@@ -62,9 +70,7 @@ export function UserPortal({
         <p className="eyebrow">个人订阅</p>
         <h1>{customer.displayName}</h1>
         <div className="status-line">
-          <span className={`badge ${status}`}>
-            {status === "active" ? "正常" : status === "expired" ? "已过期" : "已禁用"}
-          </span>
+          <span className={`badge ${status}`}>{statusText}</span>
           <span>到期：{formatDateTime(customer.expiresAt)}</span>
         </div>
 
@@ -112,9 +118,7 @@ export function UserPortal({
         </div>
 
         {!active ? (
-          <p className="error-text">
-            {status === "expired" ? "订阅已过期，请续费后让管理员恢复。" : "订阅已被管理员禁用。"}
-          </p>
+          <p className="error-text">{inactiveMessage}</p>
         ) : null}
       </section>
     </main>
