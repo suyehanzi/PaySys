@@ -111,6 +111,29 @@ http://localhost:3000/admin
 
 正式对外建议使用 HTTPS。HTTP 能跑，但 Cookie 和后台密码在公网环境下不够稳妥。
 
+## 云电脑重启后启动
+
+桌面上有一个快捷方式：
+
+```text
+启动 PaySys
+```
+
+云电脑重启后，登录进桌面，双击这个快捷方式即可。它会自动检查并启动：
+
+- PaySys 服务
+- Cloudflare 隧道
+- Bark 状态推送
+
+如果快捷方式丢失，也可以打开 PowerShell，手动执行：
+
+```powershell
+cd D:\Desktop\Codex2026\PaySys
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\paysys-monitor.ps1 -ForceNotify
+```
+
+执行后会通过 Bark 推送当前客户页和后台页。只要云电脑不要关机，PaySys 和隧道就会继续在后台运行。
+
 ## 日常使用
 
 1. 管理员打开 `/admin`。
