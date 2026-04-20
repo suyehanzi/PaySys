@@ -137,8 +137,8 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\paysys-monitor
 当前固定域名：
 
 ```text
-客户页：http://paysys.suyehanzi.online/portal
-后台页：http://paysys.suyehanzi.online/admin
+客户页：https://paysys.suyehanzi.online/portal
+后台页：https://paysys.suyehanzi.online/admin
 ```
 
 Cloudflare Tunnel 已安装为 Windows 服务：
@@ -152,13 +152,6 @@ Restart-Service Cloudflared
 
 ```powershell
 sc.exe qc Cloudflared
-```
-
-等 Cloudflare 的边缘证书签发完成后，固定入口应改用 HTTPS：
-
-```text
-客户页：https://paysys.suyehanzi.online/portal
-后台页：https://paysys.suyehanzi.online/admin
 ```
 
 ## 日常使用
