@@ -12,6 +12,7 @@ $LocalPortalUrl = "http://127.0.0.1:$Port/portal"
 $LogDir = Join-Path $AppDir "logs"
 $ToolsDir = Join-Path $AppDir "tools"
 $TunnelExe = Join-Path $ToolsDir "cloudflared.exe"
+$CloudflaredConfigPath = Join-Path $env:USERPROFILE ".cloudflared\config.yml"
 $StatePath = Join-Path $LogDir "monitor-state.json"
 $MonitorLogPath = Join-Path $LogDir "monitor.log"
 
@@ -60,6 +61,21 @@ function Normalize-BarkBaseUrl {
     }
   } catch {
     return $candidate
+  }
+
+  return $candidate
+}
+
+function Normalize-PublicBaseUrl {
+  param([string]$Value)
+
+  if (-not $Value) {
+    return $null
+  }
+
+  $candidate = $Value.Trim().TrimEnd("/")
+  if (-not $candidate) {
+    return $null
   }
 
   return $candidate
@@ -173,6 +189,65 @@ function Start-Cloudflared {
   return $true
 }
 
+function Start-NamedCloudflared {
+  if (-not (Test-Path -LiteralPath $TunnelExe)) {
+    return $false
+  }
+
+  $outLog = Join-Path $LogDir "cloudflared.out.log"
+  $errLog = Join-Path $LogDir "cloudflared.err.log"
+  $arguments = @("--config", $CloudflaredConfigPath, "tunnel", "run")
+  if ($script:CloudflaredTunnelName) {
+    $arguments += $script:CloudflaredTunnelName
+  }
+
+  Start-Process `
+    -FilePath $TunnelExe `
+    -ArgumentList $arguments `
+    -WorkingDirectory $AppDir `
+    -RedirectStandardOutput $outLog `
+    -RedirectStandardError $errLog `
+    -WindowStyle Hidden | Out-Null
+
+  return $true
+}
+
+function Get-CloudflaredService {
+  if ($script:CloudflaredServiceName) {
+    $service = Get-Service -Name $script:CloudflaredServiceName -ErrorAction SilentlyContinue
+    if ($service) {
+      return $service
+    }
+  }
+
+  Get-Service -ErrorAction SilentlyContinue |
+    Where-Object { $_.Name -like "*cloudflared*" -or $_.DisplayName -like "*cloudflared*" } |
+    Select-Object -First 1
+}
+
+function Start-CloudflaredService {
+  $service = Get-CloudflaredService
+  if (-not $service) {
+    return $false
+  }
+
+  if ($service.Status -ne "Running") {
+    Start-Service -Name $service.Name -ErrorAction Stop
+  }
+
+  return $true
+}
+
+function Restart-CloudflaredService {
+  $service = Get-CloudflaredService
+  if (-not $service) {
+    return $false
+  }
+
+  Restart-Service -Name $service.Name -Force -ErrorAction Stop
+  return $true
+}
+
 function Get-TunnelUrl {
   $matches = @()
   foreach ($file in @((Join-Path $LogDir "cloudflared.err.log"), (Join-Path $LogDir "cloudflared.out.log"))) {
@@ -216,6 +291,9 @@ function Save-State {
 
 $monitorConfig = Read-KeyValueFile (Join-Path $AppDir ".monitor.env")
 $script:BarkBaseUrl = Normalize-BarkBaseUrl $monitorConfig["BARK_BASE_URL"]
+$script:PublicBaseUrl = Normalize-PublicBaseUrl $monitorConfig["PUBLIC_BASE_URL"]
+$script:CloudflaredServiceName = $monitorConfig["CLOUDFLARED_SERVICE_NAME"]
+$script:CloudflaredTunnelName = if ($monitorConfig["CLOUDFLARED_TUNNEL_NAME"]) { $monitorConfig["CLOUDFLARED_TUNNEL_NAME"] } else { "paysys" }
 
 $state = Read-State
 $actions = New-Object System.Collections.Generic.List[string]
@@ -230,36 +308,85 @@ if (-not $localCheck.Ok) {
   $localCheck = Invoke-UrlCheck $LocalPortalUrl
 }
 
-$tunnelProcess = Get-CloudflaredProcess
-if (-not $tunnelProcess) {
-  Start-Cloudflared | Out-Null
-  $actions.Add("Cloudflare tunnel started") | Out-Null
-  Start-Sleep -Seconds 15
-}
+$tunnelUrl = $null
+$tunnelProcessOk = $false
 
-$tunnelUrl = Get-TunnelUrl
-$externalCheck = if ($tunnelUrl) {
-  Invoke-UrlCheck "$tunnelUrl/portal"
+if ($script:PublicBaseUrl) {
+  $tunnelUrl = $script:PublicBaseUrl
+  $cloudflaredService = Get-CloudflaredService
+
+  if ($cloudflaredService -and $cloudflaredService.Status -ne "Running") {
+    try {
+      Start-CloudflaredService | Out-Null
+      $actions.Add("Cloudflare tunnel service started") | Out-Null
+      Start-Sleep -Seconds 8
+    } catch {
+      Add-Content -LiteralPath $MonitorLogPath -Value "$(Get-Date -Format o) cloudflared_service_start_failed error=$($_.Exception.Message)"
+    }
+  } elseif (-not $cloudflaredService -and -not (Get-CloudflaredProcess)) {
+    Start-NamedCloudflared | Out-Null
+    $actions.Add("Cloudflare named tunnel started") | Out-Null
+    Start-Sleep -Seconds 12
+  }
+
+  $externalCheck = Invoke-UrlCheck "$tunnelUrl/portal"
+
+  if ($localCheck.Ok -and -not $externalCheck.Ok) {
+    $cloudflaredService = Get-CloudflaredService
+    if ($cloudflaredService) {
+      try {
+        Restart-CloudflaredService | Out-Null
+        $actions.Add("Cloudflare tunnel service restarted") | Out-Null
+      } catch {
+        Add-Content -LiteralPath $MonitorLogPath -Value "$(Get-Date -Format o) cloudflared_service_restart_failed error=$($_.Exception.Message)"
+      }
+    } else {
+      Stop-Cloudflared
+      Start-Sleep -Seconds 2
+      Start-NamedCloudflared | Out-Null
+      $actions.Add("Cloudflare named tunnel restarted") | Out-Null
+    }
+
+    Start-Sleep -Seconds 18
+    $externalCheck = Invoke-UrlCheck "$tunnelUrl/portal"
+  }
+
+  $cloudflaredService = Get-CloudflaredService
+  $tunnelProcess = Get-CloudflaredProcess
+  $tunnelProcessOk = (($cloudflaredService -and $cloudflaredService.Status -eq "Running") -or [bool]$tunnelProcess)
 } else {
-  [pscustomobject]@{ Ok = $false; Detail = "No tunnel URL found" }
-}
+  $tunnelProcess = Get-CloudflaredProcess
+  if (-not $tunnelProcess) {
+    Start-Cloudflared | Out-Null
+    $actions.Add("Cloudflare tunnel started") | Out-Null
+    Start-Sleep -Seconds 15
+  }
 
-if ($localCheck.Ok -and -not $externalCheck.Ok) {
-  Stop-Cloudflared
-  Start-Sleep -Seconds 2
-  Start-Cloudflared | Out-Null
-  $actions.Add("Cloudflare tunnel restarted") | Out-Null
-  Start-Sleep -Seconds 18
   $tunnelUrl = Get-TunnelUrl
   $externalCheck = if ($tunnelUrl) {
     Invoke-UrlCheck "$tunnelUrl/portal"
   } else {
-    [pscustomobject]@{ Ok = $false; Detail = "No tunnel URL found after restart" }
+    [pscustomobject]@{ Ok = $false; Detail = "No tunnel URL found" }
   }
+
+  if ($localCheck.Ok -and -not $externalCheck.Ok) {
+    Stop-Cloudflared
+    Start-Sleep -Seconds 2
+    Start-Cloudflared | Out-Null
+    $actions.Add("Cloudflare tunnel restarted") | Out-Null
+    Start-Sleep -Seconds 18
+    $tunnelUrl = Get-TunnelUrl
+    $externalCheck = if ($tunnelUrl) {
+      Invoke-UrlCheck "$tunnelUrl/portal"
+    } else {
+      [pscustomobject]@{ Ok = $false; Detail = "No tunnel URL found after restart" }
+    }
+  }
+
+  $tunnelProcess = Get-CloudflaredProcess
+  $tunnelProcessOk = [bool]$tunnelProcess
 }
 
-$tunnelProcess = Get-CloudflaredProcess
-$tunnelProcessOk = [bool]$tunnelProcess
 $healthy = $localCheck.Ok -and $tunnelProcessOk -and $externalCheck.Ok
 $portalUrl = if ($tunnelUrl) { "$tunnelUrl/portal" } else { "(none)" }
 $adminUrl = if ($tunnelUrl) { "$tunnelUrl/admin" } else { "(none)" }

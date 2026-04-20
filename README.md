@@ -122,7 +122,7 @@ http://localhost:3000/admin
 云电脑重启后，登录进桌面，双击这个快捷方式即可。它会自动检查并启动：
 
 - PaySys 服务
-- Cloudflare 隧道
+- Cloudflare 隧道服务
 - Bark 状态推送
 
 如果快捷方式丢失，也可以打开 PowerShell，手动执行：
@@ -133,6 +133,33 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\paysys-monitor
 ```
 
 执行后会通过 Bark 推送当前客户页和后台页。只要云电脑不要关机，PaySys 和隧道就会继续在后台运行。
+
+当前固定域名：
+
+```text
+客户页：http://paysys.suyehanzi.online/portal
+后台页：http://paysys.suyehanzi.online/admin
+```
+
+Cloudflare Tunnel 已安装为 Windows 服务：
+
+```powershell
+Get-Service Cloudflared
+Restart-Service Cloudflared
+```
+
+如果要查看服务启动命令：
+
+```powershell
+sc.exe qc Cloudflared
+```
+
+等 Cloudflare 的边缘证书签发完成后，固定入口应改用 HTTPS：
+
+```text
+客户页：https://paysys.suyehanzi.online/portal
+后台页：https://paysys.suyehanzi.online/admin
+```
 
 ## 日常使用
 
