@@ -237,6 +237,16 @@ small {
   padding: 18px;
 }
 
+.metrics-grid article.warning {
+  background: var(--soft-amber);
+  border-color: #e3c06e;
+}
+
+.metrics-grid article.warning span,
+.metrics-grid article.warning strong {
+  color: var(--amber);
+}
+
 .metrics-grid span {
   display: block;
   color: var(--muted);
@@ -354,6 +364,10 @@ small {
   gap: 8px;
 }
 
+.action-buttons {
+  flex-wrap: nowrap;
+}
+
 .button-row.wide {
   margin-top: 16px;
 }
@@ -433,10 +447,13 @@ small {
 .badge {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   border-radius: 999px;
+  min-width: 52px;
   padding: 5px 10px;
   font-size: 12px;
   font-weight: 700;
+  white-space: nowrap;
 }
 
 .badge.good,
@@ -509,7 +526,7 @@ small {
 table {
   width: 100%;
   border-collapse: collapse;
-  min-width: 980px;
+  min-width: 1120px;
 }
 
 th,
@@ -532,6 +549,14 @@ td input {
 
 td textarea {
   min-width: 180px;
+}
+
+.status-cell {
+  min-width: 76px;
+}
+
+.action-cell {
+  min-width: 292px;
 }
 
 .payment-row {
@@ -869,6 +894,15 @@ td textarea {
     width: 100%;
     max-width: 100%;
     min-width: 0;
+  }
+
+  .status-cell,
+  .action-cell {
+    min-width: 0;
+  }
+
+  .action-buttons {
+    flex-wrap: wrap;
   }
 
   .payment-row {

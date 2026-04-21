@@ -133,7 +133,6 @@ export function AdminApp() {
       total: customers.length,
       active: customers.filter((customer) => getCustomerStatus(customer) === "active").length,
       unpaid: customers.filter((customer) => getCustomerStatus(customer) === "unpaid").length,
-      expired: customers.filter((customer) => getCustomerStatus(customer) === "expired").length,
       disabled: customers.filter((customer) => getCustomerStatus(customer) === "disabled").length,
       dueSoon,
       totalClicks: customers.reduce((sum, customer) => sum + customer.subscriptionClicks, 0),
@@ -478,13 +477,9 @@ export function AdminApp() {
           <span>未登记</span>
           <strong>{counts.unpaid}</strong>
         </article>
-        <article>
-          <span>7天内到期</span>
+        <article className={counts.dueSoon > 0 ? "warning" : ""}>
+          <span>一周内到期</span>
           <strong>{counts.dueSoon}</strong>
-        </article>
-        <article>
-          <span>过期7天+</span>
-          <strong>{counts.expired}</strong>
         </article>
         <article>
           <span>获取总次数</span>
@@ -572,7 +567,7 @@ export function AdminApp() {
                         rows={2}
                       />
                     </td>
-                    <td data-label="状态">
+                    <td data-label="状态" className="status-cell">
                       <span className={`badge ${status}`}>{statusLabel(status)}</span>
                     </td>
                     <td data-label="到期">
@@ -619,8 +614,8 @@ export function AdminApp() {
                         </button>
                       </div>
                     </td>
-                    <td data-label="操作">
-                      <div className="button-row">
+                    <td data-label="操作" className="action-cell">
+                      <div className="button-row action-buttons">
                         <button
                           type="button"
                           className="ghost compact-button"
@@ -728,34 +723,6 @@ export function AdminApp() {
       <section className="table-section slim">
         <div className="section-heading">
           <div>
-            <p className="eyebrow">获取</p>
-            <h2>最近获取记录</h2>
-          </div>
-          <span className="muted-stat">{state?.accessLogs.length || 0}</span>
-        </div>
-        <div className="recent-access">
-          {state?.accessLogs.length ? (
-            state.accessLogs.map((log) => (
-              <div key={log.id}>
-                <span>
-                  <strong>{log.customerDisplayName || (log.customerId ? `#${log.customerId}` : "未知客户")}</strong>
-                  <small>{log.customerQq || "未填 QQ"} · {log.customerGroupName || "未分组"}</small>
-                </span>
-                <span>{accessActionLabel(log.action)}</span>
-                <span>{formatDateTime(log.createdAt)}</span>
-                <span>{log.ip || "未知 IP"}</span>
-                <span title={log.userAgent}>{shortUserAgent(log.userAgent)}</span>
-              </div>
-            ))
-          ) : (
-            <p>暂无获取记录。</p>
-          )}
-        </div>
-      </section>
-
-      <section className="table-section slim">
-        <div className="section-heading">
-          <div>
             <p className="eyebrow">收款</p>
             <h2>最近登记</h2>
           </div>
@@ -782,6 +749,34 @@ export function AdminApp() {
             ))
           ) : (
             <p>暂无续费记录。</p>
+          )}
+        </div>
+      </section>
+
+      <section className="table-section slim">
+        <div className="section-heading">
+          <div>
+            <p className="eyebrow">获取</p>
+            <h2>最近获取记录</h2>
+          </div>
+          <span className="muted-stat">{state?.accessLogs.length || 0}</span>
+        </div>
+        <div className="recent-access">
+          {state?.accessLogs.length ? (
+            state.accessLogs.map((log) => (
+              <div key={log.id}>
+                <span>
+                  <strong>{log.customerDisplayName || (log.customerId ? `#${log.customerId}` : "未知客户")}</strong>
+                  <small>{log.customerQq || "未填 QQ"} · {log.customerGroupName || "未分组"}</small>
+                </span>
+                <span>{accessActionLabel(log.action)}</span>
+                <span>{formatDateTime(log.createdAt)}</span>
+                <span>{log.ip || "未知 IP"}</span>
+                <span title={log.userAgent}>{shortUserAgent(log.userAgent)}</span>
+              </div>
+            ))
+          ) : (
+            <p>暂无获取记录。</p>
           )}
         </div>
       </section>
