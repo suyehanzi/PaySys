@@ -553,6 +553,12 @@ td textarea {
   margin-top: 14px;
 }
 
+.recent-access {
+  display: grid;
+  gap: 8px;
+  margin-top: 14px;
+}
+
 .recent-payments div {
   display: grid;
   grid-template-columns: 1fr 100px 80px 180px auto;
@@ -562,8 +568,19 @@ td textarea {
   border-bottom: 1px solid var(--line);
 }
 
+.recent-access div {
+  display: grid;
+  grid-template-columns: 1.2fr 100px 180px 140px minmax(160px, 1fr);
+  gap: 14px;
+  align-items: center;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--line);
+}
+
 .recent-payments span,
-.recent-payments p {
+.recent-payments p,
+.recent-access span,
+.recent-access p {
   color: var(--muted);
 }
 
@@ -870,7 +887,8 @@ td textarea {
     content: "";
   }
 
-  .recent-payments div {
+  .recent-payments div,
+  .recent-access div {
     grid-template-columns: 1fr;
     gap: 6px;
     padding: 14px 0;

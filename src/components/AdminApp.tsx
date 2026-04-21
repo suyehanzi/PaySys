@@ -6,11 +6,12 @@ import { copyToClipboard } from "@/lib/clipboard";
 import { dateInputValue, formatDateTime } from "@/lib/dates";
 import { getCustomerStatus, remainingDays } from "@/lib/customer";
 import { DEFAULT_PAYMENT_AMOUNT, DEFAULT_PAYMENT_PERIOD_DAYS } from "@/lib/payments";
-import type { Customer, Payment, UpstreamStatus } from "@/lib/db";
+import type { AccessLog, Customer, Payment, UpstreamStatus } from "@/lib/db";
 
 type AdminState = {
   customers: Customer[];
   payments: Payment[];
+  accessLogs: AccessLog[];
   upstream: UpstreamStatus;
   admin: {
     usingDefaultPassword: boolean;
@@ -51,6 +52,30 @@ function statusLabel(status: StatusFilter) {
   if (status === "expired") return "过期";
   if (status === "disabled") return "禁用";
   return "全部";
+}
+
+function accessActionLabel(action: string) {
+  if (action === "portal_get_subscription") return "获取入口";
+  if (action === "subscription_fetch") return "订阅拉取";
+  if (action === "portal_login") return "客户登录";
+  if (action === "user_refresh") return "刷新订阅";
+  return action;
+}
+
+function shortUserAgent(value: string) {
+  const text = value.trim();
+  if (!text) return "未知设备";
+  if (/clash/i.test(text)) return "Clash";
+  if (/stash/i.test(text)) return "Stash";
+  if (/shadowrocket/i.test(text)) return "Shadowrocket";
+  if (/surge/i.test(text)) return "Surge";
+  if (/quantumult/i.test(text)) return "Quantumult";
+  if (/iphone|ipad|ios/i.test(text)) return "iOS 浏览器";
+  if (/android/i.test(text)) return "Android 浏览器";
+  if (/edg\//i.test(text)) return "Edge 浏览器";
+  if (/chrome/i.test(text)) return "Chrome 浏览器";
+  if (/safari/i.test(text)) return "Safari 浏览器";
+  return text.slice(0, 80);
 }
 
 function expiryHint(customer: Customer, status: StatusFilter) {
@@ -698,6 +723,34 @@ export function AdminApp() {
             </form>
           </aside>
         ) : null}
+      </section>
+
+      <section className="table-section slim">
+        <div className="section-heading">
+          <div>
+            <p className="eyebrow">获取</p>
+            <h2>最近获取记录</h2>
+          </div>
+          <span className="muted-stat">{state?.accessLogs.length || 0}</span>
+        </div>
+        <div className="recent-access">
+          {state?.accessLogs.length ? (
+            state.accessLogs.map((log) => (
+              <div key={log.id}>
+                <span>
+                  <strong>{log.customerDisplayName || (log.customerId ? `#${log.customerId}` : "未知客户")}</strong>
+                  <small>{log.customerQq || "未填 QQ"} · {log.customerGroupName || "未分组"}</small>
+                </span>
+                <span>{accessActionLabel(log.action)}</span>
+                <span>{formatDateTime(log.createdAt)}</span>
+                <span>{log.ip || "未知 IP"}</span>
+                <span title={log.userAgent}>{shortUserAgent(log.userAgent)}</span>
+              </div>
+            ))
+          ) : (
+            <p>暂无获取记录。</p>
+          )}
+        </div>
       </section>
 
       <section className="table-section slim">

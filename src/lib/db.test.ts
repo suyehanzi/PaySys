@@ -96,6 +96,28 @@ describe("customer database", () => {
     expect(db.listRecentPayments(10).some((payment) => payment.customerId === customer.id)).toBe(false);
   });
 
+  it("lists detailed access logs for admin review", () => {
+    const customer = db.createCustomer({ displayName: "记录用户", qq: "10003", groupName: "二群" });
+    db.logAccess({
+      customerId: customer.id,
+      action: "portal_get_subscription",
+      ip: "127.0.0.1",
+      userAgent: "Clash",
+    });
+
+    const logs = db.listAccessLogs(10);
+
+    expect(logs[0]).toMatchObject({
+      customerId: customer.id,
+      customerDisplayName: "记录用户",
+      customerQq: "10003",
+      customerGroupName: "二群",
+      action: "portal_get_subscription",
+      ip: "127.0.0.1",
+      userAgent: "Clash",
+    });
+  });
+
   it("deletes a customer and related payment records", () => {
     const customer = db.createCustomer({ displayName: "吴十", qq: "10002" });
     db.extendCustomer({ customerId: customer.id, amount: 45, periodDays: 180 });

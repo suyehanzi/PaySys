@@ -35,6 +35,18 @@ export type Payment = {
   canRollback: boolean;
 };
 
+export type AccessLog = {
+  id: number;
+  customerId: number | null;
+  customerDisplayName: string;
+  customerQq: string;
+  customerGroupName: string;
+  action: string;
+  ip: string;
+  userAgent: string;
+  createdAt: string;
+};
+
 export type UpstreamStatus = {
   contentSize: number;
   contentType: string;
@@ -71,6 +83,18 @@ type PaymentRow = {
   notes: string | null;
   previous_expires_at?: string | null;
   new_expires_at?: string | null;
+};
+
+type AccessLogRow = {
+  id: number;
+  customer_id: number | null;
+  customer_display_name?: string | null;
+  customer_qq?: string | null;
+  customer_group_name?: string | null;
+  action: string;
+  ip: string | null;
+  user_agent: string | null;
+  created_at: string;
 };
 
 type UpstreamRow = {
@@ -212,6 +236,20 @@ function mapPayment(row: PaymentRow): Payment {
     previousExpiresAt: row.previous_expires_at || null,
     newExpiresAt: row.new_expires_at || null,
     canRollback: Boolean(row.previous_expires_at && row.new_expires_at),
+  };
+}
+
+function mapAccessLog(row: AccessLogRow): AccessLog {
+  return {
+    id: row.id,
+    customerId: row.customer_id,
+    customerDisplayName: row.customer_display_name || "",
+    customerQq: row.customer_qq || "",
+    customerGroupName: row.customer_group_name || "",
+    action: row.action,
+    ip: row.ip || "",
+    userAgent: row.user_agent || "",
+    createdAt: row.created_at,
   };
 }
 
@@ -484,6 +522,23 @@ export function listRecentPayments(limit = 20): Payment[] {
     )
     .all(limit) as PaymentRow[];
   return rows.map(mapPayment);
+}
+
+export function listAccessLogs(limit = 500): AccessLog[] {
+  const rows = getDb()
+    .prepare(
+      `SELECT
+        access_logs.*,
+        customers.display_name AS customer_display_name,
+        customers.qq AS customer_qq,
+        customers.group_name AS customer_group_name
+       FROM access_logs
+       LEFT JOIN customers ON customers.id = access_logs.customer_id
+       ORDER BY access_logs.created_at DESC, access_logs.id DESC
+       LIMIT ?`,
+    )
+    .all(Math.max(1, Math.min(limit, 2000))) as AccessLogRow[];
+  return rows.map(mapAccessLog);
 }
 
 export function deletePayment(id: number): { deleted: boolean; rolledBack: boolean } {
