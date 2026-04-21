@@ -118,7 +118,7 @@ describe("customer database", () => {
     });
   });
 
-  it("summarizes all customer access actions in the customer list", () => {
+  it("summarizes subscription fetches in the customer list", () => {
     const customer = db.createCustomer({ displayName: "汇总用户", qq: "10004", groupName: "二群" });
     db.logAccess({ customerId: customer.id, action: "portal_login" });
     db.logAccess({ customerId: customer.id, action: "portal_get_subscription" });
@@ -127,7 +127,7 @@ describe("customer database", () => {
 
     const listed = db.listCustomers().find((item) => item.id === customer.id);
 
-    expect(listed?.subscriptionClicks).toBe(4);
+    expect(listed?.subscriptionClicks).toBe(1);
     expect(listed?.lastSubscriptionClickAt).not.toBeNull();
   });
 

@@ -496,7 +496,7 @@ export function AdminApp() {
           <strong>{counts.dueSoon}</strong>
         </article>
         <article>
-          <span>获取总次数</span>
+          <span>拉取总次数</span>
           <strong>{counts.totalClicks}</strong>
         </article>
       </section>
@@ -556,7 +556,7 @@ export function AdminApp() {
                 <th>客户</th>
                 <th>状态</th>
                 <th>到期</th>
-                <th>获取次数</th>
+                <th>拉取次数</th>
                 <th>续费</th>
                 <th>操作</th>
               </tr>
@@ -594,7 +594,7 @@ export function AdminApp() {
                       />
                       <small>{expiryHint(customer, status)}</small>
                     </td>
-                    <td data-label="获取次数">
+                    <td data-label="拉取次数">
                       <strong>{customer.subscriptionClicks}</strong>
                       <small>{customer.lastSubscriptionClickAt ? formatDateTime(customer.lastSubscriptionClickAt) : "未获取"}</small>
                     </td>
