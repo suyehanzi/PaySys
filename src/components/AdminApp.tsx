@@ -121,6 +121,7 @@ export function AdminApp() {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [showCreateCustomer, setShowCreateCustomer] = useState(false);
   const paymentInFlight = useRef(new Set<number>());
+  const createPanelRef = useRef<HTMLElement | null>(null);
 
   const counts = useMemo(() => {
     const customers = state?.customers || [];
@@ -199,6 +200,19 @@ export function AdminApp() {
       mounted = false;
     };
   }, []);
+
+  useEffect(() => {
+    if (!showCreateCustomer || typeof window === "undefined") {
+      return;
+    }
+    if (!window.matchMedia("(max-width: 860px)").matches) {
+      return;
+    }
+
+    window.requestAnimationFrame(() => {
+      createPanelRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  }, [showCreateCustomer]);
 
   async function handleLogin(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -662,7 +676,7 @@ export function AdminApp() {
         </div>
 
         {showCreateCustomer ? (
-          <aside className="create-side-panel">
+          <aside className="create-side-panel" ref={createPanelRef}>
             <form className="panel stack" onSubmit={createCustomer}>
               <div className="section-heading">
                 <div>

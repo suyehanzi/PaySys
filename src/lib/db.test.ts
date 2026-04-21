@@ -118,6 +118,19 @@ describe("customer database", () => {
     });
   });
 
+  it("summarizes all customer access actions in the customer list", () => {
+    const customer = db.createCustomer({ displayName: "汇总用户", qq: "10004", groupName: "二群" });
+    db.logAccess({ customerId: customer.id, action: "portal_login" });
+    db.logAccess({ customerId: customer.id, action: "portal_get_subscription" });
+    db.logAccess({ customerId: customer.id, action: "subscription_fetch" });
+    db.logAccess({ customerId: customer.id, action: "user_refresh" });
+
+    const listed = db.listCustomers().find((item) => item.id === customer.id);
+
+    expect(listed?.subscriptionClicks).toBe(4);
+    expect(listed?.lastSubscriptionClickAt).not.toBeNull();
+  });
+
   it("deletes a customer and related payment records", () => {
     const customer = db.createCustomer({ displayName: "吴十", qq: "10002" });
     db.extendCustomer({ customerId: customer.id, amount: 45, periodDays: 180 });

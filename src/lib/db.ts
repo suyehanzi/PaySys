@@ -266,13 +266,11 @@ export function listCustomers(): Customer[] {
           SELECT COUNT(*)
           FROM access_logs
           WHERE access_logs.customer_id = customers.id
-            AND access_logs.action = 'portal_get_subscription'
         ), 0) AS subscription_clicks,
         (
           SELECT MAX(access_logs.created_at)
           FROM access_logs
           WHERE access_logs.customer_id = customers.id
-            AND access_logs.action = 'portal_get_subscription'
         ) AS last_subscription_click_at,
         COALESCE((
           SELECT COUNT(*)
