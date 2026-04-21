@@ -2,7 +2,7 @@ import Database from "better-sqlite3";
 import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
-import { addDays, defaultExpiryIso, nowIso } from "@/lib/dates";
+import { addDaysAtChinaEndOfDay, defaultExpiryIso, nowIso } from "@/lib/dates";
 
 export type Customer = {
   id: number;
@@ -395,7 +395,7 @@ export function extendCustomer(input: {
 
   const baseMs = Math.max(new Date(current.expiresAt).getTime(), Date.now());
   const baseDate = Number.isFinite(baseMs) ? new Date(baseMs) : new Date();
-  const nextExpiresAt = addDays(baseDate, input.periodDays).toISOString();
+  const nextExpiresAt = addDaysAtChinaEndOfDay(baseDate, input.periodDays);
   const paidAt = input.paidAt || nowIso();
   const timestamp = nowIso();
 

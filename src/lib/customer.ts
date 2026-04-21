@@ -1,3 +1,5 @@
+import { chinaDayNumber } from "@/lib/dates";
+
 export type CustomerStatus = "active" | "unpaid" | "expired" | "disabled";
 
 export type CustomerLike = {
@@ -24,9 +26,7 @@ export function isCustomerActive(customer: CustomerLike, now = new Date()): bool
 }
 
 export function remainingDays(expiresAt: string, now = new Date()): number {
-  const expiry = new Date(expiresAt).getTime();
-  if (!Number.isFinite(expiry)) return 0;
-  const diff = expiry - now.getTime();
-  if (diff <= 0) return 0;
-  return Math.ceil(diff / 86_400_000);
+  const expiry = new Date(expiresAt);
+  if (!Number.isFinite(expiry.getTime())) return 0;
+  return Math.max(0, chinaDayNumber(expiry) - chinaDayNumber(now));
 }

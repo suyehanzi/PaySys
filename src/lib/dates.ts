@@ -1,3 +1,6 @@
+const CHINA_OFFSET_MS = 8 * 60 * 60 * 1000;
+const DAY_MS = 86_400_000;
+
 export function nowIso(): string {
   return new Date().toISOString();
 }
@@ -9,7 +12,19 @@ export function addDays(date: Date, days: number): Date {
 }
 
 export function defaultExpiryIso(days = 30): string {
-  return addDays(new Date(), days).toISOString();
+  return addDaysAtChinaEndOfDay(new Date(), days);
+}
+
+export function chinaDayNumber(date: Date): number {
+  return Math.floor((date.getTime() + CHINA_OFFSET_MS) / DAY_MS);
+}
+
+export function addDaysAtChinaEndOfDay(date: Date, days: number): string {
+  const chinaDate = new Date(date.getTime() + CHINA_OFFSET_MS);
+  const year = chinaDate.getUTCFullYear();
+  const month = chinaDate.getUTCMonth();
+  const day = chinaDate.getUTCDate() + days;
+  return new Date(Date.UTC(year, month, day, 15, 59, 59, 0)).toISOString();
 }
 
 export function parseDateInputToIso(value: string): string {

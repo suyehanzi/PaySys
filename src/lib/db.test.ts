@@ -2,7 +2,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { getCustomerStatus, isCustomerActive } from "@/lib/customer";
+import { getCustomerStatus, isCustomerActive, remainingDays } from "@/lib/customer";
 
 let tempDir = "";
 let db: typeof import("@/lib/db");
@@ -20,6 +20,7 @@ describe("customer database", () => {
   });
 
   afterEach(() => {
+    vi.useRealTimers();
     db.closeDbForTests();
     vi.unstubAllEnvs();
     fs.rmSync(tempDir, { recursive: true, force: true });
@@ -113,6 +114,29 @@ describe("customer database", () => {
     expect(result.payment.previousExpiresAt).toBe(currentExpiry);
     expect(result.payment.newExpiresAt).toBe(result.customer.expiresAt);
     expect(new Date(result.customer.expiresAt).getTime()).toBeGreaterThan(new Date(currentExpiry).getTime());
+  });
+
+  it("extends payments to the end of the displayed China date", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-04-21T08:48:25.602Z"));
+    const customer = db.createCustomer({
+      displayName: "月底统一",
+      expiresAt: "2026-04-20T15:59:59.000Z",
+    });
+
+    const result = db.extendCustomer({ customerId: customer.id, amount: 45, periodDays: 180 });
+
+    expect(result.payment.periodDays).toBe(180);
+    expect(result.customer.expiresAt).toBe("2026-10-18T15:59:59.000Z");
+    expect(result.payment.newExpiresAt).toBe("2026-10-18T15:59:59.000Z");
+  });
+
+  it("counts remaining days by the displayed China date", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-04-21T10:30:00.000Z"));
+
+    expect(remainingDays("2026-10-16T08:48:25.602Z")).toBe(178);
+    expect(remainingDays("2026-10-16T15:59:59.000Z")).toBe(178);
   });
 
   it("rejects accidental duplicate payment registration within a minute", () => {
