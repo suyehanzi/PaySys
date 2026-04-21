@@ -221,7 +221,7 @@ export function AdminApp() {
     }
   }
 
-  async function patchCustomer(id: number, patch: Partial<Customer>) {
+  async function patchCustomer(id: number, patch: Partial<Customer>): Promise<boolean> {
     setBusy(`patch-${id}`);
     try {
       await readJson(await fetch(`/api/admin/customers/${id}`, {
@@ -230,10 +230,23 @@ export function AdminApp() {
         body: JSON.stringify(patch),
       }));
       await loadState();
+      return true;
     } catch (error) {
       setNotice(error instanceof Error ? error.message : "更新客户失败");
+      return false;
     } finally {
       setBusy("");
+    }
+  }
+
+  async function saveCustomerNotes(customer: Customer, value: string) {
+    const notes = value.trim();
+    if (notes === customer.notes) {
+      return;
+    }
+
+    if (await patchCustomer(customer.id, { notes })) {
+      setNotice("备注已保存");
     }
   }
 
@@ -521,10 +534,18 @@ export function AdminApp() {
                 const draft = paymentDrafts[customer.id] || defaultPaymentDraft;
                 return (
                   <tr key={customer.id}>
-                    <td data-label="客户">
+                    <td data-label="客户" className="customer-cell">
                       <strong>{customer.displayName}</strong>
                       <small>{customer.qq || "未填 QQ"} · {customer.groupName || "未分组"}</small>
-                      {customer.notes ? <small className="note-line">{customer.notes}</small> : null}
+                      <textarea
+                        className="note-editor"
+                        defaultValue={customer.notes}
+                        placeholder="备注"
+                        onBlur={(event) => void saveCustomerNotes(customer, event.currentTarget.value)}
+                        aria-label={`${customer.displayName} 备注`}
+                        disabled={busy === `patch-${customer.id}`}
+                        rows={2}
+                      />
                     </td>
                     <td data-label="状态">
                       <span className={`badge ${status}`}>{statusLabel(status)}</span>

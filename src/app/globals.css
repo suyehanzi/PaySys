@@ -276,8 +276,18 @@ small {
   margin-top: 18px;
 }
 
-.note-line {
-  color: var(--blue-dark);
+.customer-cell {
+  min-width: 190px;
+}
+
+.note-editor {
+  margin-top: 8px;
+  min-height: 40px;
+  max-height: 120px;
+  padding: 8px 10px;
+  resize: vertical;
+  font-size: 13px;
+  line-height: 1.4;
 }
 
 .primary,
@@ -518,6 +528,10 @@ th {
 
 td input {
   min-width: 130px;
+}
+
+td textarea {
+  min-width: 180px;
 }
 
 .payment-row {
@@ -833,7 +847,8 @@ td input {
     padding-top: 0;
   }
 
-  td input {
+  td input,
+  td textarea {
     width: 100%;
     max-width: 100%;
     min-width: 0;
