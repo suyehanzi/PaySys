@@ -4,6 +4,7 @@ import { useState } from "react";
 import QRCode from "qrcode";
 import { Icon } from "@/components/Icon";
 import { copyToClipboard } from "@/lib/clipboard";
+import { formatDateTime } from "@/lib/dates";
 import type { CustomerStatus } from "@/lib/customer";
 import type { Customer } from "@/lib/db";
 
@@ -14,6 +15,8 @@ export function PortalAccount({ customer, status }: { customer: Customer; status
   const [qrDataUrl, setQrDataUrl] = useState("");
 
   const active = status === "active";
+  const statusText =
+    status === "active" ? "正常" : status === "unpaid" ? "未登记付款" : status === "expired" ? "已过期" : "已禁用";
   const inactiveMessage =
     status === "unpaid"
       ? "未登记付款，请付款后联系管理员开通。"
@@ -81,8 +84,13 @@ export function PortalAccount({ customer, status }: { customer: Customer; status
             <h1>{customer.displayName}</h1>
           </div>
           <button className="ghost compact-button" onClick={logout}>
+            <Icon name="power" />
             退出
           </button>
+        </div>
+        <div className="status-line">
+          <span className={`badge ${status}`}>{statusText}</span>
+          <span>到期：{formatDateTime(customer.expiresAt)}</span>
         </div>
 
         <section className="portal-section">
@@ -133,7 +141,7 @@ export function PortalAccount({ customer, status }: { customer: Customer; status
           </button>
         </div>
 
-        {notice ? <p className="notice inline">{notice}</p> : null}
+        {notice ? <p className="notice inline" role="status">{notice}</p> : null}
 
         {manualCopy ? (
           <div className="manual-copy inline-copy">

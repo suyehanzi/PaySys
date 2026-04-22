@@ -155,6 +155,8 @@ Restart-Service Cloudflared
 sc.exe qc Cloudflared
 ```
 
+当前命名隧道配置里保留了 `edge-ip-version: auto`。如果 Cloudflared 重启后域名返回 `530`，优先确认这项仍在 `C:\Users\Administrator\.cloudflared\config.yml` 中，然后重启 `Cloudflared` 服务。
+
 ## 日常使用
 
 1. 管理员打开 `/admin`。

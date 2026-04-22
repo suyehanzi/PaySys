@@ -85,7 +85,7 @@ export function UserPortal({
           </div>
         </dl>
 
-        {notice ? <p className="notice inline">{notice}</p> : null}
+        {notice ? <p className="notice inline" role="status">{notice}</p> : null}
 
         {manualCopy ? (
           <div className="manual-copy inline-copy">
@@ -101,7 +101,13 @@ export function UserPortal({
 
         <div className="subscription-box">
           <span>{active ? subscriptionUrl : "当前状态不可获取订阅"}</span>
-          <button className="ghost icon-button" disabled={!active} title="复制订阅地址" onClick={copySubscription}>
+          <button
+            className="ghost icon-button"
+            disabled={!active}
+            title="复制订阅地址"
+            aria-label="复制订阅地址"
+            onClick={copySubscription}
+          >
             <Icon name="copy" />
           </button>
         </div>

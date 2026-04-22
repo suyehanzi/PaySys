@@ -37,13 +37,13 @@ export function PortalLogin() {
         <p className="login-hint">首次输入后，本设备会自动记住。</p>
         <form className="stack" onSubmit={login}>
           <label>
-            <span className="sr-only">QQ 号</span>
+            <span>QQ 号</span>
             <input
               value={qq}
               onChange={(event) => setQq(event.target.value)}
               inputMode="numeric"
               autoComplete="username"
-              placeholder="请输入已登记的 QQ 号，无法进入请联系群主"
+              placeholder="请输入已登记的 QQ 号"
               autoFocus
               required
             />
