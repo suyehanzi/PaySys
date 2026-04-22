@@ -7,8 +7,8 @@
   --muted: #66736d;
   --line: #d9e2de;
   --line-strong: #c7d4cf;
-  --blue: #2f5fb8;
-  --blue-dark: #244b94;
+  --blue: #137a70;
+  --blue-dark: #0f5f58;
   --teal: #0f766e;
   --green: #117557;
   --red: #b73535;
@@ -87,14 +87,14 @@ input:focus,
 textarea:focus,
 select:focus {
   border-color: var(--blue);
-  box-shadow: 0 0 0 3px rgba(49, 94, 203, 0.14);
+  box-shadow: 0 0 0 3px rgba(19, 122, 112, 0.16);
 }
 
 button:focus-visible,
 input:focus-visible,
 textarea:focus-visible,
 select:focus-visible {
-  outline: 3px solid rgba(47, 95, 184, 0.24);
+  outline: 3px solid rgba(19, 122, 112, 0.24);
   outline-offset: 2px;
 }
 
@@ -381,7 +381,7 @@ small {
 .primary {
   background: var(--blue);
   color: #fff;
-  box-shadow: 0 8px 18px rgba(47, 95, 184, 0.2);
+  box-shadow: 0 8px 18px rgba(19, 122, 112, 0.2);
 }
 
 .primary:hover {

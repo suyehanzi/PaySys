@@ -414,7 +414,7 @@ export function AdminApp() {
           <p>输入后台密码进入。</p>
           <form onSubmit={handleLogin} className="stack">
             <label>
-              <span>后台密码</span>
+              <span className="sr-only">后台密码</span>
               <input
                 type="password"
                 value={password}
