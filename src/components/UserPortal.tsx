@@ -79,7 +79,7 @@ export function UserPortal({
         <h1>{customer.displayName}</h1>
         <div className="status-line">
           <span className={`badge ${customer.isVip && status === "active" ? "vip" : status}`}>{statusText}</span>
-          <span>{customer.isVip && status === "active" ? "VIP 不限期" : `到期：${formatDateTime(customer.expiresAt)}`}</span>
+          {customer.isVip && status === "active" ? null : <span>到期：{formatDateTime(customer.expiresAt)}</span>}
         </div>
 
         <dl className="facts">

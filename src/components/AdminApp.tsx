@@ -96,7 +96,7 @@ function shortUserAgent(value: string) {
 
 function expiryHint(customer: Customer, status: StatusFilter) {
   if (status === "disabled") return "已禁用";
-  if (customer.isVip) return "VIP 不限期";
+  if (customer.isVip) return "VIP";
   if (status === "unpaid") return "未登记付款";
   if (status === "expired") return "过期7天+";
 
