@@ -214,6 +214,10 @@ small {
   margin-bottom: 16px;
 }
 
+.login-panel h1 + .stack {
+  margin-top: 18px;
+}
+
 .login-panel input {
   min-height: 52px;
   font-size: 18px;
@@ -260,6 +264,14 @@ small {
 
 .section-heading h2 {
   color: var(--ink);
+}
+
+.section-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
 }
 
 .metrics-grid {
@@ -327,6 +339,37 @@ small {
   border-top: 1px solid var(--line);
   margin-top: 18px;
   padding-top: 18px;
+}
+
+.portal-register-toggle {
+  width: 100%;
+  min-height: 50px;
+  border: 1px solid #b7d4ce;
+  border-radius: var(--radius);
+  background: var(--soft-teal);
+  color: var(--blue-dark);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-weight: 750;
+  box-shadow: 0 8px 18px rgba(19, 122, 112, 0.12);
+  transition:
+    background-color 160ms ease,
+    border-color 160ms ease,
+    transform 160ms ease,
+    box-shadow 160ms ease;
+}
+
+.portal-register-toggle:hover,
+.portal-register-toggle[aria-expanded="true"] {
+  background: #d9eee9;
+  border-color: #9bc7bf;
+  box-shadow: 0 10px 22px rgba(19, 122, 112, 0.16);
+}
+
+.portal-register-toggle:hover {
+  transform: translateY(-1px);
 }
 
 .portal-register-form {
@@ -933,6 +976,11 @@ td textarea {
   .section-heading {
     align-items: flex-start;
     flex-direction: column;
+  }
+
+  .section-actions {
+    width: 100%;
+    justify-content: space-between;
   }
 
   h1 {

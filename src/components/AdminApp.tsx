@@ -154,6 +154,7 @@ export function AdminApp() {
   const [customerSearch, setCustomerSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [showCreateCustomer, setShowCreateCustomer] = useState(false);
+  const [showUpstreamAccounts, setShowUpstreamAccounts] = useState(false);
   const paymentInFlight = useRef(new Set<number>());
   const createPanelRef = useRef<HTMLElement | null>(null);
 
@@ -785,145 +786,164 @@ export function AdminApp() {
             <p className="eyebrow">账号</p>
             <h2>上游账号</h2>
           </div>
-          <span className="muted-stat">{state?.upstreamAccounts.length || 0} 个绑定</span>
+          <div className="section-actions">
+            <span className="muted-stat">{state?.upstreamAccounts.length || 0} 个绑定</span>
+            <button
+              type="button"
+              className="ghost compact-button"
+              aria-expanded={showUpstreamAccounts}
+              aria-controls="upstream-accounts-panel"
+              onClick={() => setShowUpstreamAccounts((value) => !value)}
+            >
+              {showUpstreamAccounts ? "收起" : "展开"}
+            </button>
+          </div>
         </div>
 
-        <form className="account-create-grid" onSubmit={createUpstreamAccount}>
-          <label>
-            <span>群名</span>
-            <input
-              value={accountForm.groupName}
-              onChange={(event) => setAccountForm({ ...accountForm, groupName: event.target.value })}
-              placeholder="1群"
-              required
-            />
-          </label>
-          <label>
-            <span>名称</span>
-            <input
-              value={accountForm.label}
-              onChange={(event) => setAccountForm({ ...accountForm, label: event.target.value })}
-              placeholder="可选"
-            />
-          </label>
-          <label>
-            <span>登录账号</span>
-            <input
-              value={accountForm.email}
-              onChange={(event) => setAccountForm({ ...accountForm, email: event.target.value })}
-              placeholder="邮箱或账号"
-              required
-            />
-          </label>
-          <label>
-            <span>登录密码</span>
-            <input
-              type="password"
-              value={accountForm.password}
-              onChange={(event) => setAccountForm({ ...accountForm, password: event.target.value })}
-              placeholder="上游密码"
-              required
-            />
-          </label>
-          <button className="primary" disabled={busy === "create-account"}>
-            <Icon name="plus" />
-            添加绑定
-          </button>
-        </form>
+        <div id="upstream-accounts-panel" className="upstream-body">
+          {showUpstreamAccounts ? (
+            <>
+              <form className="account-create-grid" onSubmit={createUpstreamAccount}>
+                <label>
+                  <span>群名</span>
+                  <input
+                    value={accountForm.groupName}
+                    onChange={(event) => setAccountForm({ ...accountForm, groupName: event.target.value })}
+                    placeholder="1群"
+                    required
+                  />
+                </label>
+                <label>
+                  <span>名称</span>
+                  <input
+                    value={accountForm.label}
+                    onChange={(event) => setAccountForm({ ...accountForm, label: event.target.value })}
+                    placeholder="可选"
+                  />
+                </label>
+                <label>
+                  <span>登录账号</span>
+                  <input
+                    value={accountForm.email}
+                    onChange={(event) => setAccountForm({ ...accountForm, email: event.target.value })}
+                    placeholder="邮箱或账号"
+                    required
+                  />
+                </label>
+                <label>
+                  <span>登录密码</span>
+                  <input
+                    type="password"
+                    value={accountForm.password}
+                    onChange={(event) => setAccountForm({ ...accountForm, password: event.target.value })}
+                    placeholder="上游密码"
+                    required
+                  />
+                </label>
+                <button className="primary" disabled={busy === "create-account"}>
+                  <Icon name="plus" />
+                  添加绑定
+                </button>
+              </form>
 
-        <div className="account-list">
-          {state?.upstreamAccounts.length ? (
-            state.upstreamAccounts.map((account) => {
-              const draft = accountDraft(account);
-              return (
-                <div key={account.id} className="account-card">
-                  <div className="account-card-head">
-                    <div>
-                      <strong>{account.groupName}</strong>
-                      <small>{account.label || "未命名账号"}</small>
-                    </div>
-                    <span className={`badge ${account.enabled ? "active" : "muted"}`}>
-                      {account.enabled ? "启用" : "停用"}
-                    </span>
-                  </div>
-                  <div className="account-edit-grid">
-                    <label>
-                      <span>群名</span>
-                      <input
-                        value={draft.groupName}
-                        onChange={(event) => updateAccountDraft(account.id, { groupName: event.target.value })}
-                      />
-                    </label>
-                    <label>
-                      <span>名称</span>
-                      <input
-                        value={draft.label}
-                        onChange={(event) => updateAccountDraft(account.id, { label: event.target.value })}
-                      />
-                    </label>
-                    <label>
-                      <span>账号</span>
-                      <input
-                        value={draft.email}
-                        onChange={(event) => updateAccountDraft(account.id, { email: event.target.value })}
-                      />
-                    </label>
-                    <label>
-                      <span>密码</span>
-                      <input
-                        type="password"
-                        value={draft.password}
-                        onChange={(event) => updateAccountDraft(account.id, { password: event.target.value })}
-                        placeholder={account.hasPassword ? "留空不改" : "未设置"}
-                      />
-                    </label>
-                  </div>
-                  <div className="account-meta">
-                    <span>{upstreamAccountHint(account)}</span>
-                    <span>{account.hasContent ? `${Math.round(account.contentSize / 1024)} KB` : "无缓存"}</span>
-                  </div>
-                  <div className="button-row account-actions">
-                    <button
-                      type="button"
-                      className="secondary compact-button"
-                      onClick={() => saveUpstreamAccount(account)}
-                      disabled={busy === `save-account-${account.id}`}
-                    >
-                      <Icon name="save" />
-                      保存
-                    </button>
-                    <button
-                      type="button"
-                      className="ghost compact-button"
-                      onClick={() => refreshUpstreamAccount(account)}
-                      disabled={!account.enabled || busy === `refresh-account-${account.id}`}
-                    >
-                      <Icon name="refresh" />
-                      刷新
-                    </button>
-                    <button
-                      type="button"
-                      className="ghost compact-button"
-                      onClick={() => toggleUpstreamAccount(account)}
-                      disabled={busy === `toggle-account-${account.id}`}
-                    >
-                      <Icon name="lock" />
-                      {account.enabled ? "停用" : "启用"}
-                    </button>
-                    <button
-                      type="button"
-                      className="danger compact-button"
-                      onClick={() => deleteUpstreamAccount(account)}
-                      disabled={busy === `delete-account-${account.id}`}
-                    >
-                      删除
-                    </button>
-                  </div>
-                </div>
-              );
-            })
+              <div className="account-list">
+                {state?.upstreamAccounts.length ? (
+                  state.upstreamAccounts.map((account) => {
+                    const draft = accountDraft(account);
+                    return (
+                      <div key={account.id} className="account-card">
+                        <div className="account-card-head">
+                          <div>
+                            <strong>{account.groupName}</strong>
+                            <small>{account.label || "未命名账号"}</small>
+                          </div>
+                          <span className={`badge ${account.enabled ? "active" : "muted"}`}>
+                            {account.enabled ? "启用" : "停用"}
+                          </span>
+                        </div>
+                        <div className="account-edit-grid">
+                          <label>
+                            <span>群名</span>
+                            <input
+                              value={draft.groupName}
+                              onChange={(event) => updateAccountDraft(account.id, { groupName: event.target.value })}
+                            />
+                          </label>
+                          <label>
+                            <span>名称</span>
+                            <input
+                              value={draft.label}
+                              onChange={(event) => updateAccountDraft(account.id, { label: event.target.value })}
+                            />
+                          </label>
+                          <label>
+                            <span>账号</span>
+                            <input
+                              value={draft.email}
+                              onChange={(event) => updateAccountDraft(account.id, { email: event.target.value })}
+                            />
+                          </label>
+                          <label>
+                            <span>密码</span>
+                            <input
+                              type="password"
+                              value={draft.password}
+                              onChange={(event) => updateAccountDraft(account.id, { password: event.target.value })}
+                              placeholder={account.hasPassword ? "留空不改" : "未设置"}
+                            />
+                          </label>
+                        </div>
+                        <div className="account-meta">
+                          <span>{upstreamAccountHint(account)}</span>
+                          <span>{account.hasContent ? `${Math.round(account.contentSize / 1024)} KB` : "无缓存"}</span>
+                        </div>
+                        <div className="button-row account-actions">
+                          <button
+                            type="button"
+                            className="secondary compact-button"
+                            onClick={() => saveUpstreamAccount(account)}
+                            disabled={busy === `save-account-${account.id}`}
+                          >
+                            <Icon name="save" />
+                            保存
+                          </button>
+                          <button
+                            type="button"
+                            className="ghost compact-button"
+                            onClick={() => refreshUpstreamAccount(account)}
+                            disabled={!account.enabled || busy === `refresh-account-${account.id}`}
+                          >
+                            <Icon name="refresh" />
+                            刷新
+                          </button>
+                          <button
+                            type="button"
+                            className="ghost compact-button"
+                            onClick={() => toggleUpstreamAccount(account)}
+                            disabled={busy === `toggle-account-${account.id}`}
+                          >
+                            <Icon name="lock" />
+                            {account.enabled ? "停用" : "启用"}
+                          </button>
+                          <button
+                            type="button"
+                            className="danger compact-button"
+                            onClick={() => deleteUpstreamAccount(account)}
+                            disabled={busy === `delete-account-${account.id}`}
+                          >
+                            删除
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })
+                ) : (
+                  <p className="muted-copy">还没有绑定账号；未绑定的群会继续使用旧的全局账号。</p>
+                )}
+              </div>
+            </>
           ) : (
-            <p className="muted-copy">还没有绑定账号；未绑定的群会继续使用旧的全局账号。</p>
+            <p className="muted-copy">已收起，需要修改时展开。</p>
           )}
         </div>
       </section>

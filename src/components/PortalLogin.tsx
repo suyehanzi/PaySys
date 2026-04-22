@@ -49,7 +49,7 @@ export function PortalLogin() {
       if (!response.ok) {
         throw new Error(body.error || "提交失败");
       }
-      setRegisterNotice("申请已提交，等待管理员分配群。");
+      setRegisterNotice("已提交，等待分配。");
       setDisplayName("");
       setRegisterQq("");
     } catch (err) {
@@ -63,10 +63,9 @@ export function PortalLogin() {
     <main className="shell shell-narrow">
       <section className="login-panel">
         <h1>订阅中心</h1>
-        <p className="login-hint">输入 QQ 查看订阅。</p>
         <form className="stack" onSubmit={login}>
           <label>
-            <span>QQ 号</span>
+            <span className="sr-only">QQ 号</span>
             <input
               value={qq}
               onChange={(event) => setQq(event.target.value)}
@@ -85,33 +84,38 @@ export function PortalLogin() {
         </form>
 
         <div className="portal-register">
-          <button type="button" className="ghost compact-button" onClick={() => setShowRegister((value) => !value)}>
+          <button
+            type="button"
+            className="portal-register-toggle"
+            aria-expanded={showRegister}
+            onClick={() => setShowRegister((value) => !value)}
+          >
             <Icon name="plus" />
-            新用户申请
+            申请加入
           </button>
           {showRegister ? (
             <form className="stack portal-register-form" onSubmit={register}>
               <label>
-                <span>昵称</span>
+                <span className="sr-only">昵称</span>
                 <input
                   value={displayName}
                   onChange={(event) => setDisplayName(event.target.value)}
-                  placeholder="输入昵称"
+                  placeholder="昵称"
                   required
                 />
               </label>
               <label>
-                <span>QQ 号</span>
+                <span className="sr-only">QQ 号</span>
                 <input
                   value={registerQq}
                   onChange={(event) => setRegisterQq(event.target.value)}
                   inputMode="numeric"
-                  placeholder="输入 QQ 号"
+                  placeholder="QQ 号"
                   required
                 />
               </label>
               <button className="secondary" disabled={busy}>
-                提交申请
+                提交
               </button>
               {registerNotice ? <p className="notice inline" role="status">{registerNotice}</p> : null}
             </form>

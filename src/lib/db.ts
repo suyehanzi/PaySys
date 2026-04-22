@@ -686,7 +686,25 @@ export function listAccessLogs(limit = 500): AccessLog[] {
   return rows.map(mapAccessLog);
 }
 
+function pruneRejectedRegistrationRequests(keep = 3): void {
+  getDb()
+    .prepare(
+      `DELETE FROM registration_requests
+       WHERE status = 'rejected'
+         AND id NOT IN (
+           SELECT id
+           FROM registration_requests
+           WHERE status = 'rejected'
+           ORDER BY processed_at DESC, updated_at DESC, id DESC
+           LIMIT ?
+         )`,
+    )
+    .run(Math.max(0, keep));
+}
+
 export function listRegistrationRequests(limit = 100): RegistrationRequest[] {
+  pruneRejectedRegistrationRequests();
+
   const rows = getDb()
     .prepare(
       `SELECT *
@@ -812,6 +830,7 @@ export function rejectRegistrationRequest(id: number): RegistrationRequest | nul
        WHERE id = ?`,
     )
     .run(timestamp, timestamp, id);
+  pruneRejectedRegistrationRequests();
   return getRegistrationRequestById(id);
 }
 

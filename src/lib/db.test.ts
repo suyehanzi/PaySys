@@ -183,6 +183,18 @@ describe("customer database", () => {
     expect(result.request.assignedGroupName).toBe("2群");
   });
 
+  it("keeps only the latest three rejected registration requests", () => {
+    for (let index = 0; index < 5; index += 1) {
+      const request = db.createRegistrationRequest({ displayName: `忽略用户${index}`, qq: `2010${index}` });
+      db.rejectRegistrationRequest(request.id);
+    }
+
+    const rejectedRequests = db.listRegistrationRequests(20).filter((request) => request.status === "rejected");
+
+    expect(rejectedRequests).toHaveLength(3);
+    expect(rejectedRequests.map((request) => request.qq)).toEqual(["20104", "20103", "20102"]);
+  });
+
   it("deletes a customer and related payment records", () => {
     const customer = db.createCustomer({ displayName: "吴十", qq: "10002" });
     db.extendCustomer({ customerId: customer.id, amount: 45, periodDays: 180 });
