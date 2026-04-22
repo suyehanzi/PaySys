@@ -55,6 +55,21 @@ export type UpstreamStatus = {
   lastError: string | null;
 };
 
+export type UpstreamAccount = UpstreamStatus & {
+  id: number;
+  groupName: string;
+  label: string;
+  email: string;
+  enabled: boolean;
+  hasPassword: boolean;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type UpstreamAccountWithSecret = UpstreamAccount & {
+  password: string;
+};
+
 type CustomerRow = {
   id: number;
   display_name: string;
@@ -102,6 +117,17 @@ type UpstreamRow = {
   content_type: string | null;
   last_refreshed_at: string | null;
   last_error: string | null;
+};
+
+type UpstreamAccountRow = UpstreamRow & {
+  id: number;
+  group_name: string;
+  label: string | null;
+  email: string | null;
+  password: string | null;
+  enabled: 0 | 1;
+  created_at: string;
+  updated_at: string;
 };
 
 declare global {
@@ -156,6 +182,21 @@ function migrate(db: Database.Database): void {
       last_error TEXT
     );
 
+    CREATE TABLE IF NOT EXISTS upstream_accounts (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      group_name TEXT NOT NULL UNIQUE,
+      label TEXT NOT NULL DEFAULT '',
+      email TEXT NOT NULL DEFAULT '',
+      password TEXT NOT NULL DEFAULT '',
+      enabled INTEGER NOT NULL DEFAULT 1,
+      content TEXT NOT NULL DEFAULT '',
+      content_type TEXT NOT NULL DEFAULT 'text/plain; charset=utf-8',
+      last_refreshed_at TEXT,
+      last_error TEXT,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+
     CREATE TABLE IF NOT EXISTS access_logs (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       customer_id INTEGER,
@@ -186,6 +227,24 @@ function migrate(db: Database.Database): void {
   const customerColumnNames = new Set(customerColumns.map((column) => column.name));
   if (!customerColumnNames.has("session_version")) {
     db.exec("ALTER TABLE customers ADD COLUMN session_version INTEGER NOT NULL DEFAULT 1");
+  }
+
+  const upstreamAccountColumns = db.prepare("PRAGMA table_info(upstream_accounts)").all() as Array<{ name: string }>;
+  const upstreamAccountColumnNames = new Set(upstreamAccountColumns.map((column) => column.name));
+  if (!upstreamAccountColumnNames.has("enabled")) {
+    db.exec("ALTER TABLE upstream_accounts ADD COLUMN enabled INTEGER NOT NULL DEFAULT 1");
+  }
+  if (!upstreamAccountColumnNames.has("content")) {
+    db.exec("ALTER TABLE upstream_accounts ADD COLUMN content TEXT NOT NULL DEFAULT ''");
+  }
+  if (!upstreamAccountColumnNames.has("content_type")) {
+    db.exec("ALTER TABLE upstream_accounts ADD COLUMN content_type TEXT NOT NULL DEFAULT 'text/plain; charset=utf-8'");
+  }
+  if (!upstreamAccountColumnNames.has("last_refreshed_at")) {
+    db.exec("ALTER TABLE upstream_accounts ADD COLUMN last_refreshed_at TEXT");
+  }
+  if (!upstreamAccountColumnNames.has("last_error")) {
+    db.exec("ALTER TABLE upstream_accounts ADD COLUMN last_error TEXT");
   }
 }
 
@@ -250,6 +309,38 @@ function mapAccessLog(row: AccessLogRow): AccessLog {
     ip: row.ip || "",
     userAgent: row.user_agent || "",
     createdAt: row.created_at,
+  };
+}
+
+function mapUpstreamStatus(row: UpstreamRow): UpstreamStatus {
+  const content = row.content || "";
+  return {
+    contentSize: Buffer.byteLength(content, "utf8"),
+    contentType: row.content_type || "text/plain; charset=utf-8",
+    hasContent: content.length > 0,
+    lastRefreshedAt: row.last_refreshed_at,
+    lastError: row.last_error,
+  };
+}
+
+function mapUpstreamAccount(row: UpstreamAccountRow): UpstreamAccount {
+  return {
+    ...mapUpstreamStatus(row),
+    id: row.id,
+    groupName: row.group_name,
+    label: row.label || "",
+    email: row.email || "",
+    enabled: row.enabled === 1,
+    hasPassword: Boolean(row.password),
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+function mapUpstreamAccountWithSecret(row: UpstreamAccountRow): UpstreamAccountWithSecret {
+  return {
+    ...mapUpstreamAccount(row),
+    password: row.password || "",
   };
 }
 
@@ -567,16 +658,172 @@ export function deletePayment(id: number): { deleted: boolean; rolledBack: boole
   return { deleted: true, rolledBack: transaction() };
 }
 
+export function listUpstreamAccounts(): UpstreamAccount[] {
+  const rows = getDb()
+    .prepare("SELECT * FROM upstream_accounts ORDER BY group_name COLLATE NOCASE ASC, id ASC")
+    .all() as UpstreamAccountRow[];
+  return rows.map(mapUpstreamAccount);
+}
+
+export function getUpstreamAccountById(id: number): UpstreamAccount | null {
+  const row = getDb().prepare("SELECT * FROM upstream_accounts WHERE id = ?").get(id) as UpstreamAccountRow | undefined;
+  return row ? mapUpstreamAccount(row) : null;
+}
+
+export function getUpstreamAccountWithSecretById(id: number): UpstreamAccountWithSecret | null {
+  const row = getDb().prepare("SELECT * FROM upstream_accounts WHERE id = ?").get(id) as UpstreamAccountRow | undefined;
+  return row ? mapUpstreamAccountWithSecret(row) : null;
+}
+
+export function getUpstreamAccountWithSecretForGroup(groupName: string): UpstreamAccountWithSecret | null {
+  const normalized = groupName.trim();
+  if (!normalized) return null;
+  const row = getDb()
+    .prepare("SELECT * FROM upstream_accounts WHERE group_name = ? LIMIT 1")
+    .get(normalized) as UpstreamAccountRow | undefined;
+  return row ? mapUpstreamAccountWithSecret(row) : null;
+}
+
+export function createUpstreamAccount(input: {
+  groupName: string;
+  label?: string;
+  email: string;
+  password: string;
+  enabled?: boolean;
+}): UpstreamAccount {
+  const groupName = input.groupName.trim();
+  const email = input.email.trim();
+  const password = input.password.trim();
+  if (!groupName) throw new Error("群名不能为空");
+  if (!email) throw new Error("账号不能为空");
+  if (!password) throw new Error("密码不能为空");
+
+  const timestamp = nowIso();
+  const result = getDb()
+    .prepare(
+      `INSERT INTO upstream_accounts
+        (group_name, label, email, password, enabled, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    )
+    .run(groupName, input.label?.trim() || "", email, password, input.enabled === false ? 0 : 1, timestamp, timestamp);
+  return getUpstreamAccountById(Number(result.lastInsertRowid))!;
+}
+
+export function updateUpstreamAccount(
+  id: number,
+  patch: Partial<Pick<UpstreamAccount, "groupName" | "label" | "email" | "enabled">> & { password?: string },
+): UpstreamAccount | null {
+  const fields: string[] = [];
+  const values: unknown[] = [];
+  const mapping: Record<string, string> = {
+    groupName: "group_name",
+  };
+
+  for (const [key, rawValue] of Object.entries(patch)) {
+    if (rawValue === undefined) continue;
+    if (key === "password") {
+      const password = String(rawValue).trim();
+      if (!password) continue;
+      fields.push("password = ?");
+      values.push(password);
+      continue;
+    }
+
+    const column = mapping[key] || key;
+    const value =
+      typeof rawValue === "boolean" ? (rawValue ? 1 : 0) : typeof rawValue === "string" ? rawValue.trim() : rawValue;
+    fields.push(`${column} = ?`);
+    values.push(value);
+  }
+
+  if (!fields.length) {
+    return getUpstreamAccountById(id);
+  }
+
+  fields.push("updated_at = ?");
+  values.push(nowIso(), id);
+  getDb().prepare(`UPDATE upstream_accounts SET ${fields.join(", ")} WHERE id = ?`).run(...values);
+  return getUpstreamAccountById(id);
+}
+
+export function deleteUpstreamAccount(id: number): boolean {
+  const result = getDb().prepare("DELETE FROM upstream_accounts WHERE id = ?").run(id);
+  return result.changes > 0;
+}
+
+export function getUpstreamStatusForAccount(id: number): UpstreamStatus {
+  const row = getDb().prepare("SELECT * FROM upstream_accounts WHERE id = ?").get(id) as UpstreamAccountRow | undefined;
+  if (!row) {
+    throw new Error("上游账号不存在");
+  }
+  return mapUpstreamStatus(row);
+}
+
+export function getUpstreamStatusForGroup(groupName: string): UpstreamStatus {
+  const account = getUpstreamAccountWithSecretForGroup(groupName);
+  if (!account || !account.enabled) {
+    return getUpstreamStatus();
+  }
+  return {
+    contentSize: account.contentSize,
+    contentType: account.contentType,
+    hasContent: account.hasContent,
+    lastRefreshedAt: account.lastRefreshedAt,
+    lastError: account.lastError,
+  };
+}
+
+export function getUpstreamContentForAccount(id: number): { content: string; contentType: string } {
+  const row = getDb()
+    .prepare("SELECT content, content_type FROM upstream_accounts WHERE id = ?")
+    .get(id) as UpstreamAccountRow | undefined;
+  if (!row) {
+    throw new Error("上游账号不存在");
+  }
+  return {
+    content: row.content || "",
+    contentType: row.content_type || "text/plain; charset=utf-8",
+  };
+}
+
+export function getUpstreamContentForGroup(groupName: string): { content: string; contentType: string } {
+  const account = getUpstreamAccountWithSecretForGroup(groupName);
+  if (!account || !account.enabled) {
+    return getUpstreamContent();
+  }
+  return getUpstreamContentForAccount(account.id);
+}
+
+export function updateUpstreamAccountCache(
+  id: number,
+  input: { content: string; contentType?: string },
+): UpstreamStatus {
+  const result = getDb()
+    .prepare(
+      `UPDATE upstream_accounts
+       SET content = ?, content_type = ?, last_refreshed_at = ?, last_error = NULL, updated_at = ?
+       WHERE id = ?`,
+    )
+    .run(input.content, input.contentType || "text/plain; charset=utf-8", nowIso(), nowIso(), id);
+  if (!result.changes) {
+    throw new Error("上游账号不存在");
+  }
+  return getUpstreamStatusForAccount(id);
+}
+
+export function markUpstreamAccountError(id: number, error: string): UpstreamStatus {
+  const result = getDb()
+    .prepare("UPDATE upstream_accounts SET last_error = ?, updated_at = ? WHERE id = ?")
+    .run(error.slice(0, 1000), nowIso(), id);
+  if (!result.changes) {
+    throw new Error("上游账号不存在");
+  }
+  return getUpstreamStatusForAccount(id);
+}
+
 export function getUpstreamStatus(): UpstreamStatus {
   const row = getDb().prepare("SELECT * FROM upstream_cache WHERE id = 1").get() as UpstreamRow;
-  const content = row.content || "";
-  return {
-    contentSize: Buffer.byteLength(content, "utf8"),
-    contentType: row.content_type || "text/plain; charset=utf-8",
-    hasContent: content.length > 0,
-    lastRefreshedAt: row.last_refreshed_at,
-    lastError: row.last_error,
-  };
+  return mapUpstreamStatus(row);
 }
 
 export function getUpstreamContent(): { content: string; contentType: string } {

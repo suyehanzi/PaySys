@@ -131,6 +131,36 @@ describe("customer database", () => {
     expect(listed?.lastSubscriptionClickAt).not.toBeNull();
   });
 
+  it("keeps upstream caches separated by customer group", () => {
+    const first = db.createUpstreamAccount({
+      groupName: "1群",
+      label: "主账号",
+      email: "one@example.com",
+      password: "secret-1",
+    });
+    const second = db.createUpstreamAccount({
+      groupName: "2群",
+      label: "备用账号",
+      email: "two@example.com",
+      password: "secret-2",
+    });
+
+    db.updateUpstreamAccountCache(first.id, { content: "content-one", contentType: "text/plain" });
+    db.updateUpstreamAccountCache(second.id, { content: "content-two", contentType: "text/plain" });
+
+    expect(db.getUpstreamContentForGroup("1群").content).toBe("content-one");
+    expect(db.getUpstreamContentForGroup("2群").content).toBe("content-two");
+    expect(db.listUpstreamAccounts()[0].hasPassword).toBe(true);
+    expect("password" in db.listUpstreamAccounts()[0]).toBe(false);
+  });
+
+  it("falls back to the legacy upstream cache when a group is not bound", () => {
+    db.updateUpstreamCache({ content: "legacy-content", contentType: "text/plain" });
+
+    expect(db.getUpstreamContentForGroup("未绑定群").content).toBe("legacy-content");
+    expect(db.getUpstreamStatusForGroup("未绑定群").hasContent).toBe(true);
+  });
+
   it("deletes a customer and related payment records", () => {
     const customer = db.createCustomer({ displayName: "吴十", qq: "10002" });
     db.extendCustomer({ customerId: customer.id, amount: 45, periodDays: 180 });

@@ -6,16 +6,24 @@ import { copyToClipboard } from "@/lib/clipboard";
 import { dateInputValue, formatDateTime } from "@/lib/dates";
 import { getCustomerStatus, remainingDays } from "@/lib/customer";
 import { DEFAULT_PAYMENT_AMOUNT, DEFAULT_PAYMENT_PERIOD_DAYS } from "@/lib/payments";
-import type { AccessLog, Customer, Payment, UpstreamStatus } from "@/lib/db";
+import type { AccessLog, Customer, Payment, UpstreamAccount, UpstreamStatus } from "@/lib/db";
 
 type AdminState = {
   customers: Customer[];
   payments: Payment[];
   accessLogs: AccessLog[];
   upstream: UpstreamStatus;
+  upstreamAccounts: UpstreamAccount[];
   admin: {
     usingDefaultPassword: boolean;
   };
+};
+
+type UpstreamAccountDraft = {
+  groupName: string;
+  label: string;
+  email: string;
+  password: string;
 };
 
 type PaymentDraft = {
@@ -38,6 +46,13 @@ const initialCustomerForm = {
   qq: "",
   groupName: defaultGroupOptions[0],
   notes: "",
+};
+
+const initialAccountForm: UpstreamAccountDraft = {
+  groupName: "",
+  label: "",
+  email: "",
+  password: "",
 };
 
 function defaultDate(days: number) {
@@ -87,6 +102,15 @@ function expiryHint(customer: Customer, status: StatusFilter) {
   return days > 0 ? `剩 ${days} 天` : "宽限期内";
 }
 
+function upstreamAccountHint(account: UpstreamAccount) {
+  if (!account.enabled) return "已停用";
+  if (account.lastError) return account.lastError;
+  if (account.hasContent) {
+    return account.lastRefreshedAt ? `已缓存 · ${formatDateTime(account.lastRefreshedAt)}` : "已缓存";
+  }
+  return "尚未缓存";
+}
+
 async function readJson<T>(response: Response): Promise<T & { ok?: boolean; error?: string }> {
   const body = await response.json().catch(() => ({}));
   if (!response.ok) {
@@ -113,6 +137,8 @@ export function AdminApp() {
   const [password, setPassword] = useState("");
   const [loginError, setLoginError] = useState("");
   const [customerForm, setCustomerForm] = useState({ ...initialCustomerForm });
+  const [accountForm, setAccountForm] = useState({ ...initialAccountForm, groupName: defaultGroupOptions[0] });
+  const [accountDrafts, setAccountDrafts] = useState<Record<number, UpstreamAccountDraft>>({});
   const [busy, setBusy] = useState("");
   const [notice, setNotice] = useState("");
   const [manualCopy, setManualCopy] = useState<{ label: string; value: string } | null>(null);
@@ -139,6 +165,17 @@ export function AdminApp() {
       totalClicks: customers.reduce((sum, customer) => sum + customer.subscriptionClicks, 0),
     };
   }, [state?.customers]);
+
+  const groupOptions = useMemo(() => {
+    const names = new Set(defaultGroupOptions);
+    for (const account of state?.upstreamAccounts || []) {
+      if (account.groupName) names.add(account.groupName);
+    }
+    for (const customer of state?.customers || []) {
+      if (customer.groupName) names.add(customer.groupName);
+    }
+    return Array.from(names);
+  }, [state?.customers, state?.upstreamAccounts]);
 
   const filteredCustomers = useMemo(() => {
     const keyword = customerSearch.trim().toLowerCase();
@@ -367,6 +404,123 @@ export function AdminApp() {
     }
   }
 
+  function accountDraft(account: UpstreamAccount): UpstreamAccountDraft {
+    return accountDrafts[account.id] || {
+      groupName: account.groupName,
+      label: account.label,
+      email: account.email,
+      password: "",
+    };
+  }
+
+  function updateAccountDraft(id: number, patch: Partial<UpstreamAccountDraft>) {
+    setAccountDrafts((current) => ({
+      ...current,
+      [id]: { ...accountDraft(state!.upstreamAccounts.find((account) => account.id === id)!), ...patch },
+    }));
+  }
+
+  async function createUpstreamAccount(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setBusy("create-account");
+    try {
+      await readJson(await fetch("/api/admin/upstream-accounts", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(accountForm),
+      }));
+      setAccountForm({ ...initialAccountForm, groupName: accountForm.groupName });
+      setNotice("上游账号已添加");
+      await loadState();
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "添加账号失败");
+    } finally {
+      setBusy("");
+    }
+  }
+
+  async function saveUpstreamAccount(account: UpstreamAccount) {
+    const draft = accountDraft(account);
+    const payload: Partial<UpstreamAccountDraft> & { enabled: boolean } = {
+      groupName: draft.groupName,
+      label: draft.label,
+      email: draft.email,
+      enabled: account.enabled,
+    };
+    if (draft.password.trim()) {
+      payload.password = draft.password.trim();
+    }
+
+    setBusy(`save-account-${account.id}`);
+    try {
+      await readJson(await fetch(`/api/admin/upstream-accounts/${account.id}`, {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(payload),
+      }));
+      setAccountDrafts((current) => {
+        const next = { ...current };
+        delete next[account.id];
+        return next;
+      });
+      setNotice("上游账号已保存");
+      await loadState();
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "保存账号失败");
+    } finally {
+      setBusy("");
+    }
+  }
+
+  async function toggleUpstreamAccount(account: UpstreamAccount) {
+    setBusy(`toggle-account-${account.id}`);
+    try {
+      await readJson(await fetch(`/api/admin/upstream-accounts/${account.id}`, {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ enabled: !account.enabled }),
+      }));
+      setNotice(account.enabled ? "上游账号已停用" : "上游账号已启用");
+      await loadState();
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "切换账号失败");
+    } finally {
+      setBusy("");
+    }
+  }
+
+  async function refreshUpstreamAccount(account: UpstreamAccount) {
+    setBusy(`refresh-account-${account.id}`);
+    try {
+      const result = await readJson<{ skipped?: "cooldown" }>(
+        await fetch(`/api/admin/upstream-accounts/${account.id}/refresh`, { method: "POST" }),
+      );
+      setNotice(result.skipped === "cooldown" ? "刚刷新过，缓存已可用" : "上游订阅已刷新");
+      await loadState();
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "刷新账号失败");
+      await loadState();
+    } finally {
+      setBusy("");
+    }
+  }
+
+  async function deleteUpstreamAccount(account: UpstreamAccount) {
+    if (!window.confirm(`删除「${account.groupName}」的上游账号？已缓存订阅也会删除。`)) {
+      return;
+    }
+    setBusy(`delete-account-${account.id}`);
+    try {
+      await readJson(await fetch(`/api/admin/upstream-accounts/${account.id}`, { method: "DELETE" }));
+      setNotice("上游账号已删除");
+      await loadState();
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "删除账号失败");
+    } finally {
+      setBusy("");
+    }
+  }
+
   function updateDraft(id: number, patch: Partial<PaymentDraft>) {
     setPaymentDrafts((current) => ({
       ...current,
@@ -499,6 +653,155 @@ export function AdminApp() {
           <span>拉取总次数</span>
           <strong>{counts.totalClicks}</strong>
         </article>
+      </section>
+
+      <section className="table-section upstream-section">
+        <div className="section-heading">
+          <div>
+            <p className="eyebrow">账号</p>
+            <h2>上游账号</h2>
+          </div>
+          <span className="muted-stat">{state?.upstreamAccounts.length || 0} 个绑定</span>
+        </div>
+
+        <form className="account-create-grid" onSubmit={createUpstreamAccount}>
+          <label>
+            <span>群名</span>
+            <input
+              value={accountForm.groupName}
+              onChange={(event) => setAccountForm({ ...accountForm, groupName: event.target.value })}
+              placeholder="1群"
+              required
+            />
+          </label>
+          <label>
+            <span>名称</span>
+            <input
+              value={accountForm.label}
+              onChange={(event) => setAccountForm({ ...accountForm, label: event.target.value })}
+              placeholder="可选"
+            />
+          </label>
+          <label>
+            <span>登录账号</span>
+            <input
+              value={accountForm.email}
+              onChange={(event) => setAccountForm({ ...accountForm, email: event.target.value })}
+              placeholder="邮箱或账号"
+              required
+            />
+          </label>
+          <label>
+            <span>登录密码</span>
+            <input
+              type="password"
+              value={accountForm.password}
+              onChange={(event) => setAccountForm({ ...accountForm, password: event.target.value })}
+              placeholder="上游密码"
+              required
+            />
+          </label>
+          <button className="primary" disabled={busy === "create-account"}>
+            <Icon name="plus" />
+            添加绑定
+          </button>
+        </form>
+
+        <div className="account-list">
+          {state?.upstreamAccounts.length ? (
+            state.upstreamAccounts.map((account) => {
+              const draft = accountDraft(account);
+              return (
+                <div key={account.id} className="account-card">
+                  <div className="account-card-head">
+                    <div>
+                      <strong>{account.groupName}</strong>
+                      <small>{account.label || "未命名账号"}</small>
+                    </div>
+                    <span className={`badge ${account.enabled ? "active" : "muted"}`}>
+                      {account.enabled ? "启用" : "停用"}
+                    </span>
+                  </div>
+                  <div className="account-edit-grid">
+                    <label>
+                      <span>群名</span>
+                      <input
+                        value={draft.groupName}
+                        onChange={(event) => updateAccountDraft(account.id, { groupName: event.target.value })}
+                      />
+                    </label>
+                    <label>
+                      <span>名称</span>
+                      <input
+                        value={draft.label}
+                        onChange={(event) => updateAccountDraft(account.id, { label: event.target.value })}
+                      />
+                    </label>
+                    <label>
+                      <span>账号</span>
+                      <input
+                        value={draft.email}
+                        onChange={(event) => updateAccountDraft(account.id, { email: event.target.value })}
+                      />
+                    </label>
+                    <label>
+                      <span>密码</span>
+                      <input
+                        type="password"
+                        value={draft.password}
+                        onChange={(event) => updateAccountDraft(account.id, { password: event.target.value })}
+                        placeholder={account.hasPassword ? "留空不改" : "未设置"}
+                      />
+                    </label>
+                  </div>
+                  <div className="account-meta">
+                    <span>{upstreamAccountHint(account)}</span>
+                    <span>{account.hasContent ? `${Math.round(account.contentSize / 1024)} KB` : "无缓存"}</span>
+                  </div>
+                  <div className="button-row account-actions">
+                    <button
+                      type="button"
+                      className="secondary compact-button"
+                      onClick={() => saveUpstreamAccount(account)}
+                      disabled={busy === `save-account-${account.id}`}
+                    >
+                      <Icon name="save" />
+                      保存
+                    </button>
+                    <button
+                      type="button"
+                      className="ghost compact-button"
+                      onClick={() => refreshUpstreamAccount(account)}
+                      disabled={!account.enabled || busy === `refresh-account-${account.id}`}
+                    >
+                      <Icon name="refresh" />
+                      刷新
+                    </button>
+                    <button
+                      type="button"
+                      className="ghost compact-button"
+                      onClick={() => toggleUpstreamAccount(account)}
+                      disabled={busy === `toggle-account-${account.id}`}
+                    >
+                      <Icon name="lock" />
+                      {account.enabled ? "停用" : "启用"}
+                    </button>
+                    <button
+                      type="button"
+                      className="danger compact-button"
+                      onClick={() => deleteUpstreamAccount(account)}
+                      disabled={busy === `delete-account-${account.id}`}
+                    >
+                      删除
+                    </button>
+                  </div>
+                </div>
+              );
+            })
+          ) : (
+            <p className="muted-copy">还没有绑定账号；未绑定的群会继续使用旧的全局账号。</p>
+          )}
+        </div>
       </section>
 
       <section className={`admin-workspace ${showCreateCustomer ? "with-create" : ""}`}>
@@ -709,7 +1012,7 @@ export function AdminApp() {
                     value={customerForm.groupName}
                     onChange={(event) => setCustomerForm({ ...customerForm, groupName: event.target.value })}
                   >
-                    {defaultGroupOptions.map((groupName) => (
+                    {groupOptions.map((groupName) => (
                       <option key={groupName} value={groupName}>
                         {groupName}
                       </option>

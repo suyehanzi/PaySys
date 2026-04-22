@@ -1,7 +1,7 @@
-import { getCustomerByToken, getUpstreamContent, logAccess } from "@/lib/db";
+import { getCustomerByToken, getUpstreamContentForGroup, logAccess } from "@/lib/db";
 import { getCustomerStatus } from "@/lib/customer";
 import { clientIp, userAgent } from "@/lib/http";
-import { refreshUpstreamAutomatically } from "@/lib/upstream";
+import { refreshUpstreamForGroup } from "@/lib/upstream";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -66,11 +66,11 @@ export async function GET(
     return text(message, 403);
   }
 
-  let upstream = getUpstreamContent();
+  let upstream = getUpstreamContentForGroup(customer.groupName);
   if (!upstream.content) {
     try {
-      await refreshUpstreamAutomatically();
-      upstream = getUpstreamContent();
+      await refreshUpstreamForGroup(customer.groupName);
+      upstream = getUpstreamContentForGroup(customer.groupName);
     } catch {
       return text("订阅缓存为空，自动刷新失败，请联系管理员", 503);
     }

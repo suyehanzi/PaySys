@@ -1,4 +1,14 @@
-import { getUpstreamStatus, markUpstreamError, updateUpstreamCache, type UpstreamStatus } from "@/lib/db";
+import {
+  getUpstreamAccountWithSecretById,
+  getUpstreamAccountWithSecretForGroup,
+  getUpstreamStatus,
+  getUpstreamStatusForAccount,
+  markUpstreamAccountError,
+  markUpstreamError,
+  updateUpstreamAccountCache,
+  updateUpstreamCache,
+  type UpstreamStatus,
+} from "@/lib/db";
 
 type Fetcher = (input: string | URL, init?: RequestInit) => Promise<Response>;
 
@@ -21,17 +31,29 @@ type RefreshState = {
 };
 
 declare global {
-  var __paysysRefreshState: RefreshState | undefined;
+  var __paysysRefreshStates: Map<string, RefreshState> | undefined;
 }
 
-function refreshState(): RefreshState {
-  if (!globalThis.__paysysRefreshState) {
-    globalThis.__paysysRefreshState = {
+type CacheTarget = {
+  getStatus: () => UpstreamStatus;
+  updateCache: (input: { content: string; contentType?: string }) => UpstreamStatus;
+  markError: (error: string) => UpstreamStatus;
+};
+
+function refreshState(key: string): RefreshState {
+  if (!globalThis.__paysysRefreshStates) {
+    globalThis.__paysysRefreshStates = new Map();
+  }
+
+  let state = globalThis.__paysysRefreshStates.get(key);
+  if (!state) {
+    state = {
       inFlight: null,
       lastFinishedAt: 0,
     };
+    globalThis.__paysysRefreshStates.set(key, state);
   }
-  return globalThis.__paysysRefreshState;
+  return state;
 }
 
 export class UpstreamRefreshError extends Error {
@@ -86,19 +108,63 @@ export async function refreshFromTemporaryUrl(
   temporaryUrl: string,
   options: { fetcher?: Fetcher } = {},
 ): Promise<RefreshResult> {
+  return refreshFromTemporaryUrlForTarget(temporaryUrl, globalCacheTarget(), options);
+}
+
+async function refreshFromTemporaryUrlForTarget(
+  temporaryUrl: string,
+  target: CacheTarget,
+  options: { fetcher?: Fetcher } = {},
+): Promise<RefreshResult> {
   try {
     const url = validateTemporaryUrl(temporaryUrl);
     const fetched = await fetchSubscriptionContent(url, options.fetcher || fetch);
-    const status = updateUpstreamCache(fetched);
+    const status = target.updateCache(fetched);
     return { ok: true, status };
   } catch (error) {
-    markUpstreamError(publicError(error));
+    target.markError(publicError(error));
     throw error;
   }
 }
 
 export async function refreshUpstreamAutomatically(options: RefreshOptions = {}): Promise<RefreshResult> {
-  const state = refreshState();
+  return refreshAutomatically("global", globalCacheTarget(), options.provider || getTemporarySubscriptionUrlViaLilisi, options);
+}
+
+export async function refreshUpstreamForGroup(groupName: string, options: RefreshOptions = {}): Promise<RefreshResult> {
+  const account = getUpstreamAccountWithSecretForGroup(groupName);
+  if (!account || !account.enabled) {
+    return refreshUpstreamAutomatically(options);
+  }
+  return refreshUpstreamAccount(account.id, options);
+}
+
+export async function refreshUpstreamAccount(accountId: number, options: RefreshOptions = {}): Promise<RefreshResult> {
+  const account = getUpstreamAccountWithSecretById(accountId);
+  if (!account) {
+    throw new UpstreamRefreshError("上游账号不存在");
+  }
+  if (!account.enabled) {
+    throw new UpstreamRefreshError("上游账号已停用");
+  }
+  if (!account.email || !account.password) {
+    throw new UpstreamRefreshError("上游账号缺少账号或密码");
+  }
+
+  const target = accountCacheTarget(account.id);
+  const provider =
+    options.provider ||
+    (() => getTemporarySubscriptionUrlViaLilisiCredentials(account.email, account.password, options.fetcher || fetch));
+  return refreshAutomatically(`account:${account.id}`, target, provider, options);
+}
+
+async function refreshAutomatically(
+  key: string,
+  target: CacheTarget,
+  provider: () => Promise<string>,
+  options: RefreshOptions,
+): Promise<RefreshResult> {
+  const state = refreshState(key);
   const now = options.now?.() ?? Date.now();
   const cooldownMs = options.cooldownMs ?? 60_000;
 
@@ -107,16 +173,15 @@ export async function refreshUpstreamAutomatically(options: RefreshOptions = {})
   }
 
   if (state.lastFinishedAt && now - state.lastFinishedAt < cooldownMs) {
-    return { ok: true, skipped: "cooldown", status: getUpstreamStatus() };
+    return { ok: true, skipped: "cooldown", status: target.getStatus() };
   }
 
   const task = (async () => {
     try {
-      const provider = options.provider || getTemporarySubscriptionUrlViaLilisi;
       const temporaryUrl = await provider();
-      return await refreshFromTemporaryUrl(temporaryUrl, { fetcher: options.fetcher });
+      return await refreshFromTemporaryUrlForTarget(temporaryUrl, target, { fetcher: options.fetcher });
     } catch (error) {
-      markUpstreamError(publicError(error));
+      target.markError(publicError(error));
       throw error;
     } finally {
       state.lastFinishedAt = options.now?.() ?? Date.now();
@@ -135,7 +200,15 @@ export async function getTemporarySubscriptionUrlViaLilisi(): Promise<string> {
     throw new UpstreamRefreshError("缺少 LILISI_EMAIL 或 LILISI_PASSWORD，无法自动刷新");
   }
 
-  const loginResponse = await fetch("https://my.lilisi.cc/api/v1/passport/auth/login", {
+  return getTemporarySubscriptionUrlViaLilisiCredentials(email, password);
+}
+
+export async function getTemporarySubscriptionUrlViaLilisiCredentials(
+  email: string,
+  password: string,
+  fetcher: Fetcher = fetch,
+): Promise<string> {
+  const loginResponse = await fetcher("https://my.lilisi.cc/api/v1/passport/auth/login", {
     method: "POST",
     headers: {
       "content-type": "application/json",
@@ -157,7 +230,7 @@ export async function getTemporarySubscriptionUrlViaLilisi(): Promise<string> {
     throw new UpstreamRefreshError(loginJson?.message || "LILISI 登录失败，未返回授权信息");
   }
 
-  const subscribeResponse = await fetch("https://my.lilisi.cc/api/v1/user/getSubscribe", {
+  const subscribeResponse = await fetcher("https://my.lilisi.cc/api/v1/user/getSubscribe", {
     headers: {
       authorization: authData,
       accept: "application/json",
@@ -181,5 +254,21 @@ export async function getTemporarySubscriptionUrlViaLilisi(): Promise<string> {
 }
 
 export function resetRefreshStateForTests(): void {
-  globalThis.__paysysRefreshState = undefined;
+  globalThis.__paysysRefreshStates = undefined;
+}
+
+function globalCacheTarget(): CacheTarget {
+  return {
+    getStatus: getUpstreamStatus,
+    updateCache: updateUpstreamCache,
+    markError: markUpstreamError,
+  };
+}
+
+function accountCacheTarget(accountId: number): CacheTarget {
+  return {
+    getStatus: () => getUpstreamStatusForAccount(accountId),
+    updateCache: (input) => updateUpstreamAccountCache(accountId, input),
+    markError: (error) => markUpstreamAccountError(accountId, error),
+  };
 }

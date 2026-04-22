@@ -40,6 +40,32 @@ describe("upstream refresh", () => {
     expect(db.getUpstreamStatus().hasContent).toBe(true);
   });
 
+  it("refreshes the upstream cache bound to a customer group", async () => {
+    db.createUpstreamAccount({
+      groupName: "2群",
+      email: "two@example.com",
+      password: "secret",
+    });
+    const provider = vi.fn(async () => "https://example.com/group-two");
+    const fetcher = vi.fn(async () => new Response("group-two-content"));
+
+    await upstream.refreshUpstreamForGroup("2群", { provider, fetcher, cooldownMs: 0 });
+
+    expect(provider).toHaveBeenCalledTimes(1);
+    expect(fetcher).toHaveBeenCalledTimes(1);
+    expect(db.getUpstreamContentForGroup("2群").content).toBe("group-two-content");
+    expect(db.getUpstreamContent().content).toBe("");
+  });
+
+  it("falls back to the legacy upstream refresh when a group has no account", async () => {
+    const provider = vi.fn(async () => "https://example.com/global");
+    const fetcher = vi.fn(async () => new Response("global-content"));
+
+    await upstream.refreshUpstreamForGroup("未绑定", { provider, fetcher, cooldownMs: 0 });
+
+    expect(db.getUpstreamContent().content).toBe("global-content");
+  });
+
   it("preserves old cache content when refresh fails", async () => {
     db.updateUpstreamCache({ content: "old-content", contentType: "text/plain" });
     const fetcher = vi.fn(async () => new Response("bad", { status: 500 }));

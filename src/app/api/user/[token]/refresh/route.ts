@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
-import { getCustomerByToken, getUpstreamStatus, logAccess } from "@/lib/db";
+import { getCustomerByToken, getUpstreamStatusForGroup, logAccess } from "@/lib/db";
 import { getCustomerStatus } from "@/lib/customer";
 import { clientIp, jsonError, userAgent } from "@/lib/http";
-import { refreshUpstreamAutomatically } from "@/lib/upstream";
+import { refreshUpstreamForGroup } from "@/lib/upstream";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -32,14 +32,14 @@ export async function POST(
   }
 
   try {
-    const result = await refreshUpstreamAutomatically();
+    const result = await refreshUpstreamForGroup(customer.groupName);
     return NextResponse.json(result);
   } catch {
     return NextResponse.json(
       {
         ok: false,
         error: "自动刷新失败，请联系管理员处理",
-        status: getUpstreamStatus(),
+        status: getUpstreamStatusForGroup(customer.groupName),
       },
       { status: 500 },
     );

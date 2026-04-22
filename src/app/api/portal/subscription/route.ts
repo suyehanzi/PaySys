@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
-import { getCustomerById, getUpstreamStatus, logAccess } from "@/lib/db";
+import { getCustomerById, getUpstreamStatusForGroup, logAccess } from "@/lib/db";
 import { getCustomerStatus } from "@/lib/customer";
 import { clientIp, jsonError, publicOrigin, userAgent } from "@/lib/http";
 import { readCookie, USER_SESSION_COOKIE, verifyUserSessionValue } from "@/lib/user-auth";
-import { refreshUpstreamAutomatically } from "@/lib/upstream";
+import { refreshUpstreamForGroup } from "@/lib/upstream";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -36,9 +36,9 @@ export async function POST(request: Request): Promise<NextResponse> {
     return jsonError(message, 403);
   }
 
-  if (!getUpstreamStatus().hasContent) {
+  if (!getUpstreamStatusForGroup(customer.groupName).hasContent) {
     try {
-      await refreshUpstreamAutomatically();
+      await refreshUpstreamForGroup(customer.groupName);
     } catch {
       return jsonError("订阅缓存为空，自动刷新失败，请联系管理员", 503);
     }

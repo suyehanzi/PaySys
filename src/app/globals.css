@@ -584,6 +584,64 @@ small {
   margin-top: 16px;
 }
 
+.upstream-section {
+  margin-top: 16px;
+}
+
+.account-create-grid {
+  display: grid;
+  grid-template-columns: minmax(120px, 0.7fr) minmax(120px, 0.8fr) minmax(180px, 1fr) minmax(180px, 1fr) auto;
+  gap: 12px;
+  align-items: end;
+  margin-top: 16px;
+}
+
+.account-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 14px;
+}
+
+.account-card {
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 14px;
+  background: var(--panel-soft);
+}
+
+.account-card-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.account-edit-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.account-meta {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 10px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.account-meta span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.account-actions {
+  margin-top: 12px;
+}
+
 .segmented-control {
   display: inline-flex;
   border: 1px solid var(--line);
@@ -858,6 +916,11 @@ td textarea {
     grid-template-columns: 1fr;
   }
 
+  .account-create-grid,
+  .account-list {
+    grid-template-columns: 1fr;
+  }
+
   .segmented-control {
     width: 100%;
   }
@@ -951,6 +1014,17 @@ td textarea {
 
   .admin-toolbar {
     gap: 10px;
+  }
+
+  .account-create-grid,
+  .account-edit-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .account-meta,
+  .account-card-head {
+    flex-direction: column;
+    align-items: stretch;
   }
 
   .segmented-control {

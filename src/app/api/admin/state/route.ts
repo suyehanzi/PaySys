@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { isAdminRequest, usesDefaultAdminPassword } from "@/lib/auth";
-import { getUpstreamStatus, listAccessLogs, listCustomers, listRecentPayments } from "@/lib/db";
+import { getUpstreamStatus, listAccessLogs, listCustomers, listRecentPayments, listUpstreamAccounts } from "@/lib/db";
 import { jsonError } from "@/lib/http";
 
 export const runtime = "nodejs";
@@ -17,6 +17,7 @@ export async function GET(request: Request): Promise<NextResponse> {
     payments: listRecentPayments(20),
     accessLogs: listAccessLogs(500),
     upstream: getUpstreamStatus(),
+    upstreamAccounts: listUpstreamAccounts(),
     admin: {
       usingDefaultPassword: usesDefaultAdminPassword(),
     },
