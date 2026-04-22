@@ -3,6 +3,7 @@ node_modules/
 data/
 backups/
 .env
+.backup.env
 .monitor.env
 .env.local
 .env.*.local

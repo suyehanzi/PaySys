@@ -161,6 +161,35 @@ sc.exe qc Cloudflared
 
 当前命名隧道配置里保留了 `edge-ip-version: auto`。如果 Cloudflared 重启后域名返回 `530`，优先确认这项仍在 `C:\Users\Administrator\.cloudflared\config.yml` 中，然后重启 `Cloudflared` 服务。
 
+## 数据库备份
+
+PaySys 的客户、付款、备注、VIP、上游账号和缓存信息都保存在本地 SQLite 数据库里。为避免云电脑被回收或磁盘损坏导致数据丢失，已配置加密备份流程：
+
+- 备份脚本：`scripts/backup-paysys.ps1`
+- 加密脚本：`scripts/backup-paysys.js`
+- 恢复脚本：`scripts/restore-paysys-backup.js`
+- 备份仓库：`D:\Desktop\Codex2026\PaySysBackups`
+- GitHub 私有仓库：`suyehanzi/PaySysBackups`
+- Windows 计划任务：`PaySys Database Backup`
+
+备份文件位于备份仓库的 `backups/YYYY-MM/` 目录，格式为 `.sqlite.gz.enc`。备份内容使用 AES-256-GCM 加密，恢复口令不会提交到 GitHub。
+
+手动备份：
+
+```powershell
+cd D:\Desktop\Codex2026\PaySys
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\backup-paysys.ps1
+```
+
+恢复到临时数据库文件：
+
+```powershell
+cd D:\Desktop\Codex2026\PaySys
+node .\scripts\restore-paysys-backup.js D:\Desktop\Codex2026\PaySysBackups\backups\YYYY-MM\备份文件.sqlite.gz.enc .\data\restored-paysys.sqlite
+```
+
+恢复前应先停止 PaySys 服务，并确认恢复口令仍可用。不要把恢复口令、明文数据库或临时恢复库提交到 GitHub。
+
 ## 日常使用
 
 1. 管理员打开 `/admin`。
