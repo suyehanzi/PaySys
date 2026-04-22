@@ -34,7 +34,7 @@ export function PortalLogin() {
     <main className="shell shell-narrow">
       <section className="login-panel">
         <h1>订阅中心</h1>
-        <p className="login-hint">首次输入后，本设备会自动记住。</p>
+        <p className="login-hint">输入 QQ 查看订阅。</p>
         <form className="stack" onSubmit={login}>
           <label>
             <span>QQ 号</span>
@@ -43,7 +43,7 @@ export function PortalLogin() {
               onChange={(event) => setQq(event.target.value)}
               inputMode="numeric"
               autoComplete="username"
-              placeholder="请输入已登记的 QQ 号"
+              placeholder="输入 QQ 号"
               autoFocus
               required
             />

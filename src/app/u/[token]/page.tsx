@@ -16,7 +16,7 @@ export default async function UserPage(context: { params: Promise<{ token: strin
         <section className="empty-state">
           <p className="eyebrow">订阅入口</p>
           <h1>入口不存在</h1>
-          <p>请确认链接是否完整，或联系管理员重新获取个人入口。</p>
+          <p>请重新获取订阅入口。</p>
         </section>
       </main>
     );

@@ -26,10 +26,10 @@ export function UserPortal({
     status === "active" ? "正常" : status === "unpaid" ? "未登记付款" : status === "expired" ? "已过期" : "已禁用";
   const inactiveMessage =
     status === "unpaid"
-      ? "未登记付款，请付款后联系管理员开通。"
+      ? "未开通，请联系管理员。"
       : status === "expired"
-        ? "订阅已过期，请续费后让管理员恢复。"
-        : "订阅已被管理员禁用。";
+        ? "已过期，请续费。"
+        : "订阅已禁用。";
   const subscriptionUrl = useMemo(() => {
     if (typeof window === "undefined") return `/sub/${customer.token}`;
     return `${window.location.origin}/sub/${customer.token}`;
@@ -47,7 +47,7 @@ export function UserPortal({
       setCache(body.status);
       setNotice(body.skipped === "cooldown" ? "刚刷新过，当前订阅已可用。" : "订阅已刷新。");
     } catch (error) {
-      setNotice(error instanceof Error ? error.message : "刷新失败，请联系管理员。");
+      setNotice(error instanceof Error ? error.message : "刷新失败。");
     } finally {
       setBusy(false);
     }
@@ -61,7 +61,7 @@ export function UserPortal({
       return;
     }
     setManualCopy(subscriptionUrl);
-    setNotice("浏览器禁止自动复制，请在下方手动复制订阅地址。");
+    setNotice("请手动复制下方地址。");
   }
 
   return (
@@ -100,7 +100,7 @@ export function UserPortal({
         ) : null}
 
         <div className="subscription-box">
-          <span>{active ? subscriptionUrl : "当前状态不可获取订阅"}</span>
+          <span>{active ? subscriptionUrl : "暂不可获取"}</span>
           <button
             className="ghost icon-button"
             disabled={!active}

@@ -391,7 +391,7 @@ export function AdminApp() {
   }
 
   function portalMessage() {
-    return `请打开订阅中心：${linkFor("/portal")}\n输入已登记的 QQ 号即可查看订阅。`;
+    return `订阅入口：${linkFor("/portal")}\n输入 QQ 即可查看。`;
   }
 
   if (loading && authenticated === null) {
@@ -411,7 +411,7 @@ export function AdminApp() {
         <section className="login-panel">
           <p className="eyebrow">PaySys Admin</p>
           <h1>管理员登录</h1>
-          <p>使用本地环境变量里的 `ADMIN_PASSWORD` 登录。未配置时，本地开发默认密码为 `admin123`。</p>
+          <p>输入后台密码进入。</p>
           <form onSubmit={handleLogin} className="stack">
             <label>
               <span>后台密码</span>

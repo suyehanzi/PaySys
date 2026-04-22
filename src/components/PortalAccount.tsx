@@ -19,10 +19,10 @@ export function PortalAccount({ customer, status }: { customer: Customer; status
     status === "active" ? "正常" : status === "unpaid" ? "未登记付款" : status === "expired" ? "已过期" : "已禁用";
   const inactiveMessage =
     status === "unpaid"
-      ? "未登记付款，请付款后联系管理员开通。"
+      ? "未开通，请联系管理员。"
       : status === "expired"
-        ? "已过期，请续费后联系管理员恢复。"
-        : "订阅已被管理员禁用。";
+        ? "已过期，请续费。"
+        : "订阅已禁用。";
 
   function subscriptionUrlFromResponse(body: { subscriptionPath?: string; subscriptionUrl?: string }): string {
     const fallbackPath = `/sub/${customer.token}`;
@@ -42,7 +42,7 @@ export function PortalAccount({ customer, status }: { customer: Customer; status
     const response = await fetch("/api/portal/subscription", { method: "POST" });
     const body = await response.json().catch(() => ({}));
     if (!response.ok) {
-      setNotice(body.error || "获取订阅失败");
+      setNotice(body.error || "获取失败");
       return;
     }
 
@@ -67,7 +67,7 @@ export function PortalAccount({ customer, status }: { customer: Customer; status
       return;
     }
     setManualCopy(subscriptionUrl);
-    setNotice("浏览器禁止自动复制，请手动复制下方链接。");
+    setNotice("请手动复制下方链接。");
   }
 
   async function logout() {
@@ -102,10 +102,10 @@ export function PortalAccount({ customer, status }: { customer: Customer; status
           </div>
           {revealedUrl || !active ? (
             <div className="subscription-box">
-              <span>{active ? revealedUrl : "当前状态不可获取订阅链接"}</span>
+              <span>{active ? revealedUrl : "暂不可获取"}</span>
             </div>
           ) : (
-            <p className="muted-copy">点击页面下方“获取订阅”后显示链接。</p>
+            <p className="muted-copy">点击“获取订阅”后显示。</p>
           )}
         </section>
 
@@ -122,14 +122,14 @@ export function PortalAccount({ customer, status }: { customer: Customer; status
               <img src={qrDataUrl} alt="订阅二维码" />
             </div>
           ) : active ? (
-            <p className="muted-copy">点击页面下方“获取订阅”后显示二维码。</p>
+            <p className="muted-copy">点击“获取订阅”后显示。</p>
           ) : (
             <p className="error-text">{inactiveMessage}</p>
           )}
           {!active ? (
             <div className="pay-box">
               <div className="qr-placeholder">收款码</div>
-              <p>付款时请备注 QQ 号，方便管理员核对。</p>
+              <p>付款请备注 QQ。</p>
             </div>
           ) : null}
         </section>
