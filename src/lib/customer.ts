@@ -4,6 +4,7 @@ export type CustomerStatus = "active" | "unpaid" | "expired" | "disabled";
 
 export type CustomerLike = {
   disabled: boolean;
+  isVip?: boolean;
   expiresAt: string;
   paymentCount?: number;
 };
@@ -13,6 +14,7 @@ const DAY_MS = 86_400_000;
 
 export function getCustomerStatus(customer: CustomerLike, now = new Date()): CustomerStatus {
   if (customer.disabled) return "disabled";
+  if (customer.isVip) return "active";
   if ((customer.paymentCount || 0) <= 0) return "unpaid";
   const expiresAt = new Date(customer.expiresAt).getTime();
   if (!Number.isFinite(expiresAt) || expiresAt + GRACE_DAYS_AFTER_EXPIRY * DAY_MS <= now.getTime()) {

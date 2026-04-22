@@ -14,6 +14,7 @@ const updateCustomerSchema = z.object({
   groupName: z.string().optional(),
   expiresAt: z.string().optional(),
   disabled: z.boolean().optional(),
+  isVip: z.boolean().optional(),
   notes: z.string().optional(),
 });
 
@@ -43,6 +44,7 @@ export async function PATCH(
       groupName?: string;
       expiresAt?: string;
       disabled?: boolean;
+      isVip?: boolean;
       notes?: string;
     } = { ...parsed.data };
     if (parsed.data.expiresAt) {

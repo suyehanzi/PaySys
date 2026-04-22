@@ -96,6 +96,7 @@ function shortUserAgent(value: string) {
 
 function expiryHint(customer: Customer, status: StatusFilter) {
   if (status === "disabled") return "已禁用";
+  if (customer.isVip) return "VIP 不限期";
   if (status === "unpaid") return "未登记付款";
   if (status === "expired") return "过期7天+";
 
@@ -153,14 +154,17 @@ export function AdminApp() {
   const [paymentDrafts, setPaymentDrafts] = useState<Record<number, PaymentDraft>>({});
   const [customerSearch, setCustomerSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
+  const [groupFilter, setGroupFilter] = useState("all");
   const [showCreateCustomer, setShowCreateCustomer] = useState(false);
   const [showUpstreamAccounts, setShowUpstreamAccounts] = useState(false);
+  const [selectedCustomerIds, setSelectedCustomerIds] = useState<Set<number>>(new Set());
   const paymentInFlight = useRef(new Set<number>());
   const createPanelRef = useRef<HTMLElement | null>(null);
 
   const counts = useMemo(() => {
     const customers = state?.customers || [];
     const dueSoon = customers.filter((customer) => {
+      if (customer.isVip) return false;
       const status = getCustomerStatus(customer);
       return status === "active" && remainingDays(customer.expiresAt) <= 7;
     }).length;
@@ -192,12 +196,21 @@ export function AdminApp() {
     return (state?.customers || []).filter((customer) => {
       const status = getCustomerStatus(customer);
       const matchesStatus = statusFilter === "all" || status === statusFilter;
+      const matchesGroup = groupFilter === "all" || customer.groupName === groupFilter;
       const haystack = [customer.displayName, customer.qq, customer.groupName, customer.notes]
         .join(" ")
         .toLowerCase();
-      return matchesStatus && (!keyword || haystack.includes(keyword));
+      return matchesStatus && matchesGroup && (!keyword || haystack.includes(keyword));
     });
-  }, [customerSearch, state?.customers, statusFilter]);
+  }, [customerSearch, groupFilter, state?.customers, statusFilter]);
+
+  const selectedCustomers = useMemo(
+    () => (state?.customers || []).filter((customer) => selectedCustomerIds.has(customer.id)),
+    [selectedCustomerIds, state?.customers],
+  );
+  const selectedCount = selectedCustomers.length;
+  const allVisibleSelected =
+    filteredCustomers.length > 0 && filteredCustomers.every((customer) => selectedCustomerIds.has(customer.id));
 
   async function loadState() {
     setLoading(true);
@@ -332,6 +345,56 @@ export function AdminApp() {
 
     if (await patchCustomer(customer.id, { notes })) {
       setNotice("备注已保存");
+    }
+  }
+
+  function toggleCustomerSelection(id: number, selected: boolean) {
+    setSelectedCustomerIds((current) => {
+      const next = new Set(current);
+      if (selected) {
+        next.add(id);
+      } else {
+        next.delete(id);
+      }
+      return next;
+    });
+  }
+
+  function toggleVisibleCustomerSelection(selected: boolean) {
+    setSelectedCustomerIds((current) => {
+      const next = new Set(current);
+      for (const customer of filteredCustomers) {
+        if (selected) {
+          next.add(customer.id);
+        } else {
+          next.delete(customer.id);
+        }
+      }
+      return next;
+    });
+  }
+
+  async function bulkSetVip(isVip: boolean) {
+    if (!selectedCustomers.length) {
+      setNotice("请先选择客户");
+      return;
+    }
+
+    const ids = selectedCustomers.map((customer) => customer.id);
+    setBusy("bulk-vip");
+    try {
+      const result = await readJson<{ updated: number }>(await fetch("/api/admin/customers/bulk", {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ ids, isVip }),
+      }));
+      setSelectedCustomerIds(new Set());
+      setNotice(isVip ? `已标记 ${result.updated} 个 VIP` : `已取消 ${result.updated} 个 VIP`);
+      await loadState();
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "批量处理失败");
+    } finally {
+      setBusy("");
     }
   }
 
@@ -981,6 +1044,19 @@ export function AdminApp() {
             placeholder="搜索昵称 / QQ / 群名 / 备注"
             aria-label="搜索客户"
           />
+          <select
+            className="group-filter"
+            value={groupFilter}
+            onChange={(event) => setGroupFilter(event.target.value)}
+            aria-label="群筛选"
+          >
+            <option value="all">全部群</option>
+            {groupOptions.map((groupName) => (
+              <option key={groupName} value={groupName}>
+                {groupName}
+              </option>
+            ))}
+          </select>
           <div className="segmented-control" aria-label="客户状态筛选">
             {[
               ["all", "全部"],
@@ -1000,10 +1076,50 @@ export function AdminApp() {
           </div>
         </div>
 
+        {selectedCount ? (
+          <div className="bulk-actions" role="region" aria-label="批量处理客户">
+            <span>已选 {selectedCount} 个</span>
+            <div className="button-row">
+              <button
+                type="button"
+                className="secondary compact-button"
+                onClick={() => void bulkSetVip(true)}
+                disabled={busy === "bulk-vip"}
+              >
+                标记 VIP
+              </button>
+              <button
+                type="button"
+                className="ghost compact-button"
+                onClick={() => void bulkSetVip(false)}
+                disabled={busy === "bulk-vip"}
+              >
+                取消 VIP
+              </button>
+              <button
+                type="button"
+                className="ghost compact-button"
+                onClick={() => setSelectedCustomerIds(new Set())}
+                disabled={busy === "bulk-vip"}
+              >
+                清除选择
+              </button>
+            </div>
+          </div>
+        ) : null}
+
         <div className="table-wrap">
           <table>
             <thead>
               <tr>
+                <th className="select-col">
+                  <input
+                    type="checkbox"
+                    checked={allVisibleSelected}
+                    onChange={(event) => toggleVisibleCustomerSelection(event.currentTarget.checked)}
+                    aria-label="选择当前筛选客户"
+                  />
+                </th>
                 <th>客户</th>
                 <th>状态</th>
                 <th>到期</th>
@@ -1017,8 +1133,17 @@ export function AdminApp() {
                 const status = getCustomerStatus(customer);
                 const locked = customer.disabled;
                 const draft = paymentDrafts[customer.id] || defaultPaymentDraft;
+                const selected = selectedCustomerIds.has(customer.id);
                 return (
-                  <tr key={customer.id}>
+                  <tr key={customer.id} className={selected ? "selected-row" : undefined}>
+                    <td data-label="选择" className="select-cell">
+                      <input
+                        type="checkbox"
+                        checked={selected}
+                        onChange={(event) => toggleCustomerSelection(customer.id, event.currentTarget.checked)}
+                        aria-label={`选择 ${customer.displayName}`}
+                      />
+                    </td>
                     <td data-label="客户" className="customer-cell">
                       <strong>{customer.displayName}</strong>
                       <small>{customer.qq || "未填 QQ"} · {customer.groupName || "未分组"}</small>
@@ -1033,7 +1158,10 @@ export function AdminApp() {
                       />
                     </td>
                     <td data-label="状态" className="status-cell">
-                      <span className={`badge ${status}`}>{statusLabel(status)}</span>
+                      <div className="badge-row">
+                        <span className={`badge ${status}`}>{statusLabel(status)}</span>
+                        {customer.isVip ? <span className="badge vip">VIP</span> : null}
+                      </div>
                     </td>
                     <td data-label="到期">
                       <input
@@ -1115,7 +1243,7 @@ export function AdminApp() {
               })}
               {!filteredCustomers.length ? (
                 <tr>
-                  <td colSpan={6} className="empty-cell">
+                  <td colSpan={7} className="empty-cell">
                     {state?.customers.length ? "没有符合条件的客户。" : "还没有客户，先创建一个成员。"}
                   </td>
                 </tr>

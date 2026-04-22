@@ -12,6 +12,7 @@ export type Customer = {
   token: string;
   expiresAt: string;
   disabled: boolean;
+  isVip: boolean;
   notes: string;
   sessionVersion: number;
   createdAt: string;
@@ -90,6 +91,7 @@ type CustomerRow = {
   token: string;
   expires_at: string;
   disabled: 0 | 1;
+  is_vip?: 0 | 1;
   notes: string | null;
   session_version?: number;
   created_at: string;
@@ -180,6 +182,7 @@ function migrate(db: Database.Database): void {
       token TEXT NOT NULL UNIQUE,
       expires_at TEXT NOT NULL,
       disabled INTEGER NOT NULL DEFAULT 0,
+      is_vip INTEGER NOT NULL DEFAULT 0,
       notes TEXT DEFAULT '',
       session_version INTEGER NOT NULL DEFAULT 1,
       created_at TEXT NOT NULL,
@@ -268,6 +271,9 @@ function migrate(db: Database.Database): void {
   if (!customerColumnNames.has("session_version")) {
     db.exec("ALTER TABLE customers ADD COLUMN session_version INTEGER NOT NULL DEFAULT 1");
   }
+  if (!customerColumnNames.has("is_vip")) {
+    db.exec("ALTER TABLE customers ADD COLUMN is_vip INTEGER NOT NULL DEFAULT 0");
+  }
 
   const upstreamAccountColumns = db.prepare("PRAGMA table_info(upstream_accounts)").all() as Array<{ name: string }>;
   const upstreamAccountColumnNames = new Set(upstreamAccountColumns.map((column) => column.name));
@@ -312,6 +318,7 @@ function mapCustomer(row: CustomerRow): Customer {
     token: row.token,
     expiresAt: row.expires_at,
     disabled: row.disabled === 1,
+    isVip: row.is_vip === 1,
     notes: row.notes || "",
     sessionVersion: row.session_version || 1,
     createdAt: row.created_at,
@@ -516,7 +523,7 @@ export function createCustomer(input: {
 
 export function updateCustomer(
   id: number,
-  patch: Partial<Pick<Customer, "displayName" | "qq" | "groupName" | "expiresAt" | "disabled" | "notes">>,
+  patch: Partial<Pick<Customer, "displayName" | "qq" | "groupName" | "expiresAt" | "disabled" | "isVip" | "notes">>,
 ): Customer | null {
   const fields: string[] = [];
   const values: unknown[] = [];
@@ -524,6 +531,7 @@ export function updateCustomer(
     displayName: "display_name",
     groupName: "group_name",
     expiresAt: "expires_at",
+    isVip: "is_vip",
   };
 
   for (const [key, value] of Object.entries(patch)) {
@@ -540,6 +548,24 @@ export function updateCustomer(
   values.push(nowIso(), id);
   getDb().prepare(`UPDATE customers SET ${fields.join(", ")} WHERE id = ?`).run(...values);
   return getCustomerById(id);
+}
+
+export function setCustomersVip(ids: number[], isVip: boolean): number {
+  const uniqueIds = Array.from(new Set(ids.filter((id) => Number.isInteger(id) && id > 0)));
+  if (!uniqueIds.length) return 0;
+
+  const db = getDb();
+  const timestamp = nowIso();
+  const transaction = db.transaction(() => {
+    let changes = 0;
+    const update = db.prepare("UPDATE customers SET is_vip = ?, updated_at = ? WHERE id = ?");
+    for (const id of uniqueIds) {
+      changes += update.run(isVip ? 1 : 0, timestamp, id).changes;
+    }
+    return changes;
+  });
+
+  return transaction();
 }
 
 export function deleteCustomer(id: number): boolean {

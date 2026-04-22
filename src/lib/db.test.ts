@@ -51,14 +51,21 @@ describe("customer database", () => {
       expiresAt: new Date(Date.now() - 8 * 86_400_000).toISOString(),
     })!;
     const disabled = db.updateCustomer(active.id, { disabled: true })!;
+    const vipUnpaid = db.updateCustomer(db.createCustomer({ displayName: "VIP未付", expiresAt: future }).id, {
+      isVip: true,
+    })!;
+    const vipDisabled = db.updateCustomer(vipUnpaid.id, { disabled: true })!;
 
     expect(getCustomerStatus(unpaid)).toBe("unpaid");
     expect(getCustomerStatus(withinGrace)).toBe("active");
     expect(getCustomerStatus(expired)).toBe("expired");
     expect(getCustomerStatus(disabled)).toBe("disabled");
+    expect(getCustomerStatus(vipUnpaid)).toBe("active");
+    expect(getCustomerStatus(vipDisabled)).toBe("disabled");
     expect(isCustomerActive(unpaid)).toBe(false);
     expect(isCustomerActive(withinGrace)).toBe(true);
     expect(isCustomerActive(expired)).toBe(false);
+    expect(isCustomerActive(vipUnpaid)).toBe(true);
   });
 
   it("resets a customer token and invalidates the old link", () => {
@@ -94,6 +101,19 @@ describe("customer database", () => {
     expect(reset.token).not.toBe(customer.token);
     expect(reset.subscriptionClicks).toBe(0);
     expect(db.listRecentPayments(10).some((payment) => payment.customerId === customer.id)).toBe(false);
+  });
+
+  it("marks and cancels VIP for batches of customers", () => {
+    const first = db.createCustomer({ displayName: "VIP一号" });
+    const second = db.createCustomer({ displayName: "VIP二号" });
+
+    expect(db.setCustomersVip([first.id, second.id], true)).toBe(2);
+    expect(db.getCustomerById(first.id)?.isVip).toBe(true);
+    expect(db.getCustomerById(second.id)?.isVip).toBe(true);
+
+    expect(db.setCustomersVip([first.id], false)).toBe(1);
+    expect(db.getCustomerById(first.id)?.isVip).toBe(false);
+    expect(db.getCustomerById(second.id)?.isVip).toBe(true);
   });
 
   it("lists detailed access logs for admin review", () => {

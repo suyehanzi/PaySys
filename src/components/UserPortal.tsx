@@ -23,7 +23,15 @@ export function UserPortal({
 
   const active = status === "active";
   const statusText =
-    status === "active" ? "正常" : status === "unpaid" ? "未登记付款" : status === "expired" ? "已过期" : "已禁用";
+    status === "active"
+      ? customer.isVip
+        ? "VIP"
+        : "正常"
+      : status === "unpaid"
+        ? "未登记付款"
+        : status === "expired"
+          ? "已过期"
+          : "已禁用";
   const inactiveMessage =
     status === "unpaid"
       ? "未开通，请联系管理员。"
@@ -70,8 +78,8 @@ export function UserPortal({
         <p className="eyebrow">个人订阅</p>
         <h1>{customer.displayName}</h1>
         <div className="status-line">
-          <span className={`badge ${status}`}>{statusText}</span>
-          <span>到期：{formatDateTime(customer.expiresAt)}</span>
+          <span className={`badge ${customer.isVip && status === "active" ? "vip" : status}`}>{statusText}</span>
+          <span>{customer.isVip && status === "active" ? "VIP 不限期" : `到期：${formatDateTime(customer.expiresAt)}`}</span>
         </div>
 
         <dl className="facts">

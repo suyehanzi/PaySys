@@ -90,6 +90,14 @@ select:focus {
   box-shadow: 0 0 0 3px rgba(19, 122, 112, 0.16);
 }
 
+input[type="checkbox"] {
+  width: 18px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0;
+  accent-color: var(--blue);
+}
+
 button:focus-visible,
 input:focus-visible,
 textarea:focus-visible,
@@ -594,6 +602,11 @@ small {
   color: var(--green);
 }
 
+.badge.vip {
+  background: var(--soft-amber);
+  color: var(--amber);
+}
+
 .badge.expired,
 .badge.unpaid,
 .badge.disabled {
@@ -631,10 +644,31 @@ small {
 
 .admin-toolbar {
   display: grid;
-  grid-template-columns: minmax(260px, 1fr) auto;
+  grid-template-columns: minmax(260px, 1fr) minmax(120px, 150px) auto;
   gap: 12px;
   align-items: center;
   margin-top: 16px;
+}
+
+.group-filter {
+  min-height: 42px;
+}
+
+.bulk-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 14px;
+  border: 1px solid #b7d4ce;
+  border-radius: var(--radius);
+  background: var(--soft-teal);
+  padding: 10px 12px;
+}
+
+.bulk-actions > span {
+  color: var(--blue-dark);
+  font-weight: 750;
 }
 
 .upstream-section {
@@ -741,7 +775,7 @@ small {
 table {
   width: 100%;
   border-collapse: collapse;
-  min-width: 1120px;
+  min-width: 1180px;
 }
 
 th,
@@ -768,6 +802,28 @@ tbody tr {
 
 tbody tr:hover {
   background: #fbfdfc;
+}
+
+tbody tr.selected-row {
+  background: #f2faf7;
+}
+
+.select-col,
+.select-cell {
+  width: 46px;
+  min-width: 46px;
+  text-align: center;
+}
+
+.select-cell {
+  vertical-align: top;
+}
+
+.badge-row {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  flex-wrap: wrap;
 }
 
 td input {
@@ -1106,6 +1162,15 @@ td textarea {
     gap: 10px;
   }
 
+  .bulk-actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .bulk-actions .button-row {
+    width: 100%;
+  }
+
   .account-create-grid,
   .account-edit-grid {
     grid-template-columns: 1fr;
@@ -1186,8 +1251,11 @@ td textarea {
   }
 
   .status-cell,
-  .action-cell {
+  .action-cell,
+  .select-cell {
+    width: 100%;
     min-width: 0;
+    text-align: left;
   }
 
   .action-buttons {
