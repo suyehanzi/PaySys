@@ -1148,7 +1148,7 @@ export function AdminApp() {
                       <strong>{customer.displayName}</strong>
                       <small>{customer.qq || "未填 QQ"} · {customer.groupName || "未分组"}</small>
                       <textarea
-                        className="note-editor"
+                        className={`note-editor ${customer.notes.trim() ? "has-note" : ""}`}
                         defaultValue={customer.notes}
                         placeholder="备注"
                         onBlur={(event) => void saveCustomerNotes(customer, event.currentTarget.value)}

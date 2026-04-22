@@ -419,6 +419,17 @@ small {
   background: var(--panel-soft);
 }
 
+.note-editor.has-note {
+  border-color: #e4a2a2;
+  background: #fff4f4;
+  color: var(--red);
+}
+
+.note-editor.has-note:focus {
+  border-color: var(--red);
+  box-shadow: 0 0 0 3px rgba(183, 53, 53, 0.14);
+}
+
 .primary,
 .secondary,
 .ghost,
