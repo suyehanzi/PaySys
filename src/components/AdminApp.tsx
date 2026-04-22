@@ -807,6 +807,10 @@ export function AdminApp() {
       <section className={`admin-workspace ${showCreateCustomer ? "with-create" : ""}`}>
         <div className="admin-main">
           <section className="quick-actions">
+            <button type="button" className="secondary" onClick={() => { window.location.href = "/admin/unlimited"; }}>
+              <Icon name="link" />
+              内部测试
+            </button>
             <button type="button" className="secondary" onClick={() => copyText(portalMessage(), "QQ 回复文案")}>
               <Icon name="receipt" />
               复制文案

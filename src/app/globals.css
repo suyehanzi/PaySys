@@ -835,6 +835,16 @@ td textarea {
   width: 100%;
 }
 
+.internal-test-panel .subscription-box {
+  margin-top: 18px;
+}
+
+.internal-facts {
+  border-top: 1px solid var(--line);
+  margin-top: 18px;
+  padding-top: 18px;
+}
+
 .pay-box {
   display: grid;
   grid-template-columns: 110px 1fr;
