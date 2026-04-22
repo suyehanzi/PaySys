@@ -47,6 +47,18 @@ export type AccessLog = {
   createdAt: string;
 };
 
+export type RegistrationRequest = {
+  id: number;
+  displayName: string;
+  qq: string;
+  status: "pending" | "approved" | "rejected";
+  assignedGroupName: string;
+  customerId: number | null;
+  createdAt: string;
+  updatedAt: string;
+  processedAt: string | null;
+};
+
 export type UpstreamStatus = {
   contentSize: number;
   contentType: string;
@@ -110,6 +122,18 @@ type AccessLogRow = {
   ip: string | null;
   user_agent: string | null;
   created_at: string;
+};
+
+type RegistrationRequestRow = {
+  id: number;
+  display_name: string;
+  qq: string;
+  status: "pending" | "approved" | "rejected";
+  assigned_group_name: string | null;
+  customer_id: number | null;
+  created_at: string;
+  updated_at: string;
+  processed_at: string | null;
 };
 
 type UpstreamRow = {
@@ -207,8 +231,24 @@ function migrate(db: Database.Database): void {
       FOREIGN KEY (customer_id) REFERENCES customers(id) ON DELETE SET NULL
     );
 
+    CREATE TABLE IF NOT EXISTS registration_requests (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      display_name TEXT NOT NULL,
+      qq TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'pending',
+      assigned_group_name TEXT DEFAULT '',
+      customer_id INTEGER,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      processed_at TEXT,
+      FOREIGN KEY (customer_id) REFERENCES customers(id) ON DELETE SET NULL
+    );
+
     CREATE INDEX IF NOT EXISTS idx_access_logs_customer_action
       ON access_logs(customer_id, action, created_at);
+
+    CREATE INDEX IF NOT EXISTS idx_registration_requests_status_created
+      ON registration_requests(status, created_at);
 
     INSERT OR IGNORE INTO upstream_cache (id, content, content_type)
     VALUES (1, '', 'text/plain; charset=utf-8');
@@ -309,6 +349,20 @@ function mapAccessLog(row: AccessLogRow): AccessLog {
     ip: row.ip || "",
     userAgent: row.user_agent || "",
     createdAt: row.created_at,
+  };
+}
+
+function mapRegistrationRequest(row: RegistrationRequestRow): RegistrationRequest {
+  return {
+    id: row.id,
+    displayName: row.display_name,
+    qq: row.qq,
+    status: row.status,
+    assignedGroupName: row.assigned_group_name || "",
+    customerId: row.customer_id,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+    processedAt: row.processed_at,
   };
 }
 
@@ -630,6 +684,135 @@ export function listAccessLogs(limit = 500): AccessLog[] {
     )
     .all(Math.max(1, Math.min(limit, 2000))) as AccessLogRow[];
   return rows.map(mapAccessLog);
+}
+
+export function listRegistrationRequests(limit = 100): RegistrationRequest[] {
+  const rows = getDb()
+    .prepare(
+      `SELECT *
+       FROM registration_requests
+       ORDER BY
+         CASE status
+           WHEN 'pending' THEN 0
+           WHEN 'approved' THEN 1
+           ELSE 2
+         END,
+         created_at DESC,
+         id DESC
+       LIMIT ?`,
+    )
+    .all(Math.max(1, Math.min(limit, 500))) as RegistrationRequestRow[];
+  return rows.map(mapRegistrationRequest);
+}
+
+export function getRegistrationRequestById(id: number): RegistrationRequest | null {
+  const row = getDb()
+    .prepare("SELECT * FROM registration_requests WHERE id = ?")
+    .get(id) as RegistrationRequestRow | undefined;
+  return row ? mapRegistrationRequest(row) : null;
+}
+
+export function createRegistrationRequest(input: { displayName: string; qq: string }): RegistrationRequest {
+  const displayName = input.displayName.trim();
+  const qq = input.qq.trim();
+  if (!displayName) throw new Error("昵称不能为空");
+  if (!qq) throw new Error("QQ 不能为空");
+  if (getCustomerByQq(qq)) {
+    throw new Error("这个 QQ 已有账号，请直接登录");
+  }
+
+  const timestamp = nowIso();
+  const existingPending = getDb()
+    .prepare("SELECT * FROM registration_requests WHERE qq = ? AND status = 'pending' ORDER BY id DESC LIMIT 1")
+    .get(qq) as RegistrationRequestRow | undefined;
+  if (existingPending) {
+    getDb()
+      .prepare("UPDATE registration_requests SET display_name = ?, updated_at = ? WHERE id = ?")
+      .run(displayName, timestamp, existingPending.id);
+    return getRegistrationRequestById(existingPending.id)!;
+  }
+
+  const result = getDb()
+    .prepare(
+      `INSERT INTO registration_requests
+        (display_name, qq, status, created_at, updated_at)
+       VALUES (?, ?, 'pending', ?, ?)`,
+    )
+    .run(displayName, qq, timestamp, timestamp);
+  return getRegistrationRequestById(Number(result.lastInsertRowid))!;
+}
+
+export function approveRegistrationRequest(
+  id: number,
+  groupName: string,
+): { request: RegistrationRequest; customer: Customer } {
+  const request = getRegistrationRequestById(id);
+  if (!request) {
+    throw new Error("申请不存在");
+  }
+  if (request.status !== "pending") {
+    throw new Error("申请已处理");
+  }
+
+  const assignedGroupName = groupName.trim();
+  if (!assignedGroupName) {
+    throw new Error("请选择群名");
+  }
+
+  const db = getDb();
+  const transaction = db.transaction(() => {
+    const existingCustomer = getCustomerByQq(request.qq);
+    const customer =
+      existingCustomer ||
+      createCustomer({
+        displayName: request.displayName,
+        qq: request.qq,
+        groupName: assignedGroupName,
+        expiresAt: defaultExpiryIso(0),
+        notes: "自助注册申请",
+      });
+
+    if (existingCustomer && existingCustomer.groupName !== assignedGroupName) {
+      updateCustomer(existingCustomer.id, { groupName: assignedGroupName });
+    }
+
+    const processedAt = nowIso();
+    db.prepare(
+      `UPDATE registration_requests
+       SET status = 'approved',
+           assigned_group_name = ?,
+           customer_id = ?,
+           processed_at = ?,
+           updated_at = ?
+       WHERE id = ?`,
+    ).run(assignedGroupName, customer.id, processedAt, processedAt, id);
+
+    return getCustomerById(customer.id)!;
+  });
+
+  const customer = transaction();
+  return {
+    request: getRegistrationRequestById(id)!,
+    customer,
+  };
+}
+
+export function rejectRegistrationRequest(id: number): RegistrationRequest | null {
+  const request = getRegistrationRequestById(id);
+  if (!request) return null;
+  if (request.status !== "pending") return request;
+
+  const timestamp = nowIso();
+  getDb()
+    .prepare(
+      `UPDATE registration_requests
+       SET status = 'rejected',
+           processed_at = ?,
+           updated_at = ?
+       WHERE id = ?`,
+    )
+    .run(timestamp, timestamp, id);
+  return getRegistrationRequestById(id);
 }
 
 export function deletePayment(id: number): { deleted: boolean; rolledBack: boolean } {

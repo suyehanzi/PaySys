@@ -161,6 +161,28 @@ describe("customer database", () => {
     expect(db.getUpstreamStatusForGroup("未绑定群").hasContent).toBe(true);
   });
 
+  it("creates and updates pending registration requests by QQ", () => {
+    const first = db.createRegistrationRequest({ displayName: "新用户", qq: "20001" });
+    const second = db.createRegistrationRequest({ displayName: "改名用户", qq: "20001" });
+
+    expect(second.id).toBe(first.id);
+    expect(second.displayName).toBe("改名用户");
+    expect(db.listRegistrationRequests(10).filter((request) => request.qq === "20001")).toHaveLength(1);
+  });
+
+  it("approves registration requests into unpaid customers assigned to a group", () => {
+    const request = db.createRegistrationRequest({ displayName: "申请客户", qq: "20002" });
+
+    const result = db.approveRegistrationRequest(request.id, "2群");
+
+    expect(result.customer.displayName).toBe("申请客户");
+    expect(result.customer.qq).toBe("20002");
+    expect(result.customer.groupName).toBe("2群");
+    expect(result.customer.paymentCount).toBe(0);
+    expect(result.request.status).toBe("approved");
+    expect(result.request.assignedGroupName).toBe("2群");
+  });
+
   it("deletes a customer and related payment records", () => {
     const customer = db.createCustomer({ displayName: "吴十", qq: "10002" });
     db.extendCustomer({ customerId: customer.id, amount: 45, periodDays: 180 });

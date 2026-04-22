@@ -6,11 +6,12 @@ import { copyToClipboard } from "@/lib/clipboard";
 import { dateInputValue, formatDateTime } from "@/lib/dates";
 import { getCustomerStatus, remainingDays } from "@/lib/customer";
 import { DEFAULT_PAYMENT_AMOUNT, DEFAULT_PAYMENT_PERIOD_DAYS } from "@/lib/payments";
-import type { AccessLog, Customer, Payment, UpstreamAccount, UpstreamStatus } from "@/lib/db";
+import type { AccessLog, Customer, Payment, RegistrationRequest, UpstreamAccount, UpstreamStatus } from "@/lib/db";
 
 type AdminState = {
   customers: Customer[];
   payments: Payment[];
+  registrationRequests: RegistrationRequest[];
   accessLogs: AccessLog[];
   upstream: UpstreamStatus;
   upstreamAccounts: UpstreamAccount[];
@@ -111,6 +112,12 @@ function upstreamAccountHint(account: UpstreamAccount) {
   return "尚未缓存";
 }
 
+function registrationStatusLabel(status: RegistrationRequest["status"]) {
+  if (status === "approved") return "已分配";
+  if (status === "rejected") return "已忽略";
+  return "待分配";
+}
+
 async function readJson<T>(response: Response): Promise<T & { ok?: boolean; error?: string }> {
   const body = await response.json().catch(() => ({}));
   if (!response.ok) {
@@ -139,6 +146,7 @@ export function AdminApp() {
   const [customerForm, setCustomerForm] = useState({ ...initialCustomerForm });
   const [accountForm, setAccountForm] = useState({ ...initialAccountForm, groupName: defaultGroupOptions[0] });
   const [accountDrafts, setAccountDrafts] = useState<Record<number, UpstreamAccountDraft>>({});
+  const [registrationGroupDrafts, setRegistrationGroupDrafts] = useState<Record<number, string>>({});
   const [busy, setBusy] = useState("");
   const [notice, setNotice] = useState("");
   const [manualCopy, setManualCopy] = useState<{ label: string; value: string } | null>(null);
@@ -163,8 +171,9 @@ export function AdminApp() {
       disabled: customers.filter((customer) => getCustomerStatus(customer) === "disabled").length,
       dueSoon,
       totalClicks: customers.reduce((sum, customer) => sum + customer.subscriptionClicks, 0),
+      pendingRegistrations: (state?.registrationRequests || []).filter((request) => request.status === "pending").length,
     };
-  }, [state?.customers]);
+  }, [state?.customers, state?.registrationRequests]);
 
   const groupOptions = useMemo(() => {
     const names = new Set(defaultGroupOptions);
@@ -399,6 +408,45 @@ export function AdminApp() {
       await loadState();
     } catch (error) {
       setNotice(error instanceof Error ? error.message : "删除付款记录失败");
+    } finally {
+      setBusy("");
+    }
+  }
+
+  async function approveRegistrationRequest(request: RegistrationRequest) {
+    const groupName = registrationGroupDrafts[request.id] || groupOptions[0] || defaultGroupOptions[0];
+    setBusy(`approve-registration-${request.id}`);
+    try {
+      await readJson(await fetch(`/api/admin/registration-requests/${request.id}/approve`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ groupName }),
+      }));
+      setRegistrationGroupDrafts((current) => {
+        const next = { ...current };
+        delete next[request.id];
+        return next;
+      });
+      setNotice("申请已分配");
+      await loadState();
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "处理申请失败");
+    } finally {
+      setBusy("");
+    }
+  }
+
+  async function rejectRegistrationRequest(request: RegistrationRequest) {
+    if (!window.confirm(`忽略「${request.displayName}」的注册申请？`)) {
+      return;
+    }
+    setBusy(`reject-registration-${request.id}`);
+    try {
+      await readJson(await fetch(`/api/admin/registration-requests/${request.id}`, { method: "DELETE" }));
+      setNotice("申请已忽略");
+      await loadState();
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "忽略申请失败");
     } finally {
       setBusy("");
     }
@@ -645,6 +693,10 @@ export function AdminApp() {
           <span>未登记</span>
           <strong>{counts.unpaid}</strong>
         </article>
+        <article className={counts.pendingRegistrations > 0 ? "warning" : ""}>
+          <span>待分配</span>
+          <strong>{counts.pendingRegistrations}</strong>
+        </article>
         <article className={counts.dueSoon > 0 ? "warning" : ""}>
           <span>一周内到期</span>
           <strong>{counts.dueSoon}</strong>
@@ -653,6 +705,78 @@ export function AdminApp() {
           <span>拉取总次数</span>
           <strong>{counts.totalClicks}</strong>
         </article>
+      </section>
+
+      <section className="table-section registration-section">
+        <div className="section-heading">
+          <div>
+            <p className="eyebrow">申请</p>
+            <h2>注册申请</h2>
+          </div>
+          <span className="muted-stat">{counts.pendingRegistrations} 待分配</span>
+        </div>
+
+        <div className="registration-list">
+          {state?.registrationRequests.length ? (
+            state.registrationRequests.map((request) => {
+              const selectedGroup = registrationGroupDrafts[request.id] || groupOptions[0] || defaultGroupOptions[0];
+              const pending = request.status === "pending";
+              return (
+                <div key={request.id} className="registration-card">
+                  <div>
+                    <strong>{request.displayName}</strong>
+                    <small>{request.qq} · {formatDateTime(request.createdAt)}</small>
+                  </div>
+                  <span className={`badge ${pending ? "unpaid" : request.status === "approved" ? "active" : "muted"}`}>
+                    {registrationStatusLabel(request.status)}
+                  </span>
+                  {pending ? (
+                    <>
+                      <select
+                        value={selectedGroup}
+                        onChange={(event) =>
+                          setRegistrationGroupDrafts((current) => ({
+                            ...current,
+                            [request.id]: event.target.value,
+                          }))
+                        }
+                        aria-label={`${request.displayName} 分配群`}
+                      >
+                        {groupOptions.map((groupName) => (
+                          <option key={groupName} value={groupName}>
+                            {groupName}
+                          </option>
+                        ))}
+                      </select>
+                      <div className="button-row registration-actions">
+                        <button
+                          type="button"
+                          className="primary compact-button"
+                          onClick={() => approveRegistrationRequest(request)}
+                          disabled={busy === `approve-registration-${request.id}`}
+                        >
+                          分配
+                        </button>
+                        <button
+                          type="button"
+                          className="ghost compact-button"
+                          onClick={() => rejectRegistrationRequest(request)}
+                          disabled={busy === `reject-registration-${request.id}`}
+                        >
+                          忽略
+                        </button>
+                      </div>
+                    </>
+                  ) : (
+                    <small>{request.assignedGroupName || "未分配"}</small>
+                  )}
+                </div>
+              );
+            })
+          ) : (
+            <p className="muted-copy">暂无注册申请。</p>
+          )}
+        </div>
       </section>
 
       <section className="table-section upstream-section">

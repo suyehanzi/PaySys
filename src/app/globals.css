@@ -264,7 +264,7 @@ small {
 
 .metrics-grid {
   display: grid;
-  grid-template-columns: repeat(5, 1fr);
+  grid-template-columns: repeat(6, 1fr);
   gap: 12px;
 }
 
@@ -321,6 +321,16 @@ small {
   justify-content: flex-end;
   gap: 10px;
   margin: 16px 0 0;
+}
+
+.portal-register {
+  border-top: 1px solid var(--line);
+  margin-top: 18px;
+  padding-top: 18px;
+}
+
+.portal-register-form {
+  margin-top: 14px;
 }
 
 .admin-workspace {
@@ -586,6 +596,27 @@ small {
 
 .upstream-section {
   margin-top: 16px;
+}
+
+.registration-list {
+  display: grid;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.registration-card {
+  display: grid;
+  grid-template-columns: minmax(180px, 1fr) auto minmax(140px, 190px) auto;
+  gap: 12px;
+  align-items: center;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 12px;
+  background: var(--panel-soft);
+}
+
+.registration-actions {
+  flex-wrap: nowrap;
 }
 
 .account-create-grid {
@@ -927,7 +958,8 @@ td textarea {
   }
 
   .account-create-grid,
-  .account-list {
+  .account-list,
+  .registration-card {
     grid-template-columns: 1fr;
   }
 
