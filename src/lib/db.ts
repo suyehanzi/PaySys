@@ -250,6 +250,12 @@ function migrate(db: Database.Database): void {
     CREATE INDEX IF NOT EXISTS idx_access_logs_customer_action
       ON access_logs(customer_id, action, created_at);
 
+    CREATE INDEX IF NOT EXISTS idx_access_logs_created
+      ON access_logs(created_at DESC, id DESC);
+
+    CREATE INDEX IF NOT EXISTS idx_payments_paid
+      ON payments(paid_at DESC, id DESC);
+
     CREATE INDEX IF NOT EXISTS idx_registration_requests_status_created
       ON registration_requests(status, created_at);
 

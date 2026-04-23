@@ -643,6 +643,8 @@ small {
 
 .table-section.slim {
   margin-bottom: 0;
+  content-visibility: auto;
+  contain-intrinsic-size: 680px;
 }
 
 .table-wrap {
@@ -876,6 +878,14 @@ td textarea {
   display: grid;
   gap: 8px;
   margin-top: 14px;
+}
+
+.list-more {
+  display: flex;
+  justify-content: center;
+  border-top: 1px solid var(--line);
+  padding-top: 14px;
+  margin-top: 4px;
 }
 
 .recent-payments div {

@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import { FormEvent, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import { Icon } from "@/components/Icon";
 import { copyToClipboard } from "@/lib/clipboard";
 import { dateInputValue, formatDateTime } from "@/lib/dates";
@@ -41,6 +41,7 @@ const defaultPaymentDraft: PaymentDraft = {
   periodDays: String(DEFAULT_PAYMENT_PERIOD_DAYS),
   notes: "",
 };
+const initialAccessLogLimit = 80;
 
 const initialCustomerForm = {
   displayName: "",
@@ -157,9 +158,11 @@ export function AdminApp() {
   const [groupFilter, setGroupFilter] = useState("all");
   const [showCreateCustomer, setShowCreateCustomer] = useState(false);
   const [showUpstreamAccounts, setShowUpstreamAccounts] = useState(false);
+  const [showAllAccessLogs, setShowAllAccessLogs] = useState(false);
   const [selectedCustomerIds, setSelectedCustomerIds] = useState<Set<number>>(new Set());
   const paymentInFlight = useRef(new Set<number>());
   const createPanelRef = useRef<HTMLElement | null>(null);
+  const deferredCustomerSearch = useDeferredValue(customerSearch);
 
   const counts = useMemo(() => {
     const customers = state?.customers || [];
@@ -192,7 +195,7 @@ export function AdminApp() {
   }, [state?.customers, state?.upstreamAccounts]);
 
   const filteredCustomers = useMemo(() => {
-    const keyword = customerSearch.trim().toLowerCase();
+    const keyword = deferredCustomerSearch.trim().toLowerCase();
     return (state?.customers || []).filter((customer) => {
       const status = getCustomerStatus(customer);
       const matchesStatus = statusFilter === "all" || status === statusFilter;
@@ -202,12 +205,16 @@ export function AdminApp() {
         .toLowerCase();
       return matchesStatus && matchesGroup && (!keyword || haystack.includes(keyword));
     });
-  }, [customerSearch, groupFilter, state?.customers, statusFilter]);
+  }, [deferredCustomerSearch, groupFilter, state?.customers, statusFilter]);
 
   const selectedCustomers = useMemo(
     () => (state?.customers || []).filter((customer) => selectedCustomerIds.has(customer.id)),
     [selectedCustomerIds, state?.customers],
   );
+  const visibleAccessLogs = useMemo(() => {
+    const accessLogs = state?.accessLogs || [];
+    return showAllAccessLogs ? accessLogs : accessLogs.slice(0, initialAccessLogLimit);
+  }, [showAllAccessLogs, state?.accessLogs]);
   const selectedCount = selectedCustomers.length;
   const allVisibleSelected =
     filteredCustomers.length > 0 && filteredCustomers.every((customer) => selectedCustomerIds.has(customer.id));
@@ -1352,11 +1359,11 @@ export function AdminApp() {
             <p className="eyebrow">获取</p>
             <h2>最近获取记录</h2>
           </div>
-          <span className="muted-stat">{state?.accessLogs.length || 0}</span>
+          <span className="muted-stat">{visibleAccessLogs.length} / {state?.accessLogs.length || 0}</span>
         </div>
         <div className="recent-access">
-          {state?.accessLogs.length ? (
-            state.accessLogs.map((log) => (
+          {visibleAccessLogs.length ? (
+            visibleAccessLogs.map((log) => (
               <div key={log.id}>
                 <span>
                   <strong>{log.customerDisplayName || (log.customerId ? `#${log.customerId}` : "未知客户")}</strong>
@@ -1372,6 +1379,13 @@ export function AdminApp() {
             <p>暂无获取记录。</p>
           )}
         </div>
+        {!showAllAccessLogs && (state?.accessLogs.length || 0) > visibleAccessLogs.length ? (
+          <div className="list-more">
+            <button type="button" className="ghost compact-button" onClick={() => setShowAllAccessLogs(true)}>
+              显示更多
+            </button>
+          </div>
+        ) : null}
       </section>
     </main>
   );

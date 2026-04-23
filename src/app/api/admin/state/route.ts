@@ -23,7 +23,7 @@ export async function GET(request: Request): Promise<NextResponse> {
     customers: listCustomers(),
     payments: listRecentPayments(20),
     registrationRequests: listRegistrationRequests(100),
-    accessLogs: listAccessLogs(500),
+    accessLogs: listAccessLogs(120),
     upstream: getUpstreamStatus(),
     upstreamAccounts: listUpstreamAccounts(),
     admin: {
