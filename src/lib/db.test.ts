@@ -215,6 +215,18 @@ describe("customer database", () => {
     expect(rejectedRequests.map((request) => request.qq)).toEqual(["20104", "20103", "20102"]);
   });
 
+  it("keeps only the latest three approved registration requests", () => {
+    for (let index = 0; index < 5; index += 1) {
+      const request = db.createRegistrationRequest({ displayName: `分配用户${index}`, qq: `2020${index}` });
+      db.approveRegistrationRequest(request.id, "1群");
+    }
+
+    const approvedRequests = db.listRegistrationRequests(20).filter((request) => request.status === "approved");
+
+    expect(approvedRequests).toHaveLength(3);
+    expect(approvedRequests.map((request) => request.qq)).toEqual(["20204", "20203", "20202"]);
+  });
+
   it("deletes a customer and related payment records", () => {
     const customer = db.createCustomer({ displayName: "吴十", qq: "10002" });
     db.extendCustomer({ customerId: customer.id, amount: 45, periodDays: 180 });

@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
+import { notifyRegistrationRequest } from "@/lib/bark";
 import { z } from "zod";
 import { createRegistrationRequest } from "@/lib/db";
-import { jsonError } from "@/lib/http";
+import { jsonError, publicOrigin } from "@/lib/http";
 import { normalizeQq } from "@/lib/user-auth";
 
 export const runtime = "nodejs";
@@ -27,6 +28,13 @@ export async function POST(request: Request): Promise<NextResponse> {
     const registrationRequest = createRegistrationRequest({
       displayName: parsed.data.displayName,
       qq,
+    });
+    const origin = publicOrigin(request);
+    await notifyRegistrationRequest({
+      displayName: registrationRequest.displayName,
+      qq: registrationRequest.qq,
+      portalUrl: `${origin}/portal`,
+      adminUrl: `${origin}/admin`,
     });
     return NextResponse.json({ ok: true, request: registrationRequest });
   } catch (error) {

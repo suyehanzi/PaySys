@@ -712,24 +712,29 @@ export function listAccessLogs(limit = 500): AccessLog[] {
   return rows.map(mapAccessLog);
 }
 
-function pruneRejectedRegistrationRequests(keep = 3): void {
+function pruneRegistrationRequestsByStatus(status: RegistrationRequest["status"], keep = 3): void {
   getDb()
     .prepare(
       `DELETE FROM registration_requests
-       WHERE status = 'rejected'
+       WHERE status = ?
          AND id NOT IN (
            SELECT id
            FROM registration_requests
-           WHERE status = 'rejected'
+           WHERE status = ?
            ORDER BY processed_at DESC, updated_at DESC, id DESC
            LIMIT ?
          )`,
     )
-    .run(Math.max(0, keep));
+    .run(status, status, Math.max(0, keep));
+}
+
+function pruneProcessedRegistrationRequests(): void {
+  pruneRegistrationRequestsByStatus("approved");
+  pruneRegistrationRequestsByStatus("rejected");
 }
 
 export function listRegistrationRequests(limit = 100): RegistrationRequest[] {
-  pruneRejectedRegistrationRequests();
+  pruneProcessedRegistrationRequests();
 
   const rows = getDb()
     .prepare(
@@ -835,6 +840,7 @@ export function approveRegistrationRequest(
   });
 
   const customer = transaction();
+  pruneProcessedRegistrationRequests();
   return {
     request: getRegistrationRequestById(id)!,
     customer,
@@ -856,7 +862,7 @@ export function rejectRegistrationRequest(id: number): RegistrationRequest | nul
        WHERE id = ?`,
     )
     .run(timestamp, timestamp, id);
-  pruneRejectedRegistrationRequests();
+  pruneProcessedRegistrationRequests();
   return getRegistrationRequestById(id);
 }
 
