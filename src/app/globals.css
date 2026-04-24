@@ -408,6 +408,13 @@ small {
   min-width: 190px;
 }
 
+.customer-title-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
 .note-editor {
   margin-top: 8px;
   min-height: 40px;
@@ -618,6 +625,12 @@ small {
   color: var(--amber);
 }
 
+.badge.pinned {
+  min-width: 0;
+  background: var(--soft-amber);
+  color: var(--amber);
+}
+
 .badge.expired,
 .badge.unpaid,
 .badge.disabled {
@@ -819,6 +832,15 @@ tbody tr:hover {
 
 tbody tr.selected-row {
   background: #f2faf7;
+}
+
+tbody tr.pinned-customer-row {
+  background: #fffdf5;
+  box-shadow: inset 3px 0 0 var(--amber);
+}
+
+tbody tr.selected-row.pinned-customer-row {
+  background: #fbfbef;
 }
 
 .select-col,

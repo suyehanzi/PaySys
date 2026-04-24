@@ -79,6 +79,16 @@ function accessActionLabel(action: string) {
   return action;
 }
 
+function customerMatchesFilters(customer: Customer, keyword: string, statusFilter: StatusFilter, groupFilter: string) {
+  const status = getCustomerStatus(customer);
+  const matchesStatus = statusFilter === "all" || status === statusFilter;
+  const matchesGroup = groupFilter === "all" || customer.groupName === groupFilter;
+  const haystack = [customer.displayName, customer.qq, customer.groupName, customer.notes]
+    .join(" ")
+    .toLowerCase();
+  return matchesStatus && matchesGroup && (!keyword || haystack.includes(keyword));
+}
+
 function shortUserAgent(value: string) {
   const text = value.trim();
   if (!text) return "未知设备";
@@ -160,6 +170,7 @@ export function AdminApp() {
   const [showUpstreamAccounts, setShowUpstreamAccounts] = useState(false);
   const [showAllAccessLogs, setShowAllAccessLogs] = useState(false);
   const [selectedCustomerIds, setSelectedCustomerIds] = useState<Set<number>>(new Set());
+  const [pinnedCustomerId, setPinnedCustomerId] = useState<number | null>(null);
   const paymentInFlight = useRef(new Set<number>());
   const createPanelRef = useRef<HTMLElement | null>(null);
   const deferredCustomerSearch = useDeferredValue(customerSearch);
@@ -196,16 +207,18 @@ export function AdminApp() {
 
   const filteredCustomers = useMemo(() => {
     const keyword = deferredCustomerSearch.trim().toLowerCase();
-    return (state?.customers || []).filter((customer) => {
-      const status = getCustomerStatus(customer);
-      const matchesStatus = statusFilter === "all" || status === statusFilter;
-      const matchesGroup = groupFilter === "all" || customer.groupName === groupFilter;
-      const haystack = [customer.displayName, customer.qq, customer.groupName, customer.notes]
-        .join(" ")
-        .toLowerCase();
-      return matchesStatus && matchesGroup && (!keyword || haystack.includes(keyword));
-    });
-  }, [deferredCustomerSearch, groupFilter, state?.customers, statusFilter]);
+    const customers = (state?.customers || []).filter((customer) =>
+      customerMatchesFilters(customer, keyword, statusFilter, groupFilter),
+    );
+    if (!pinnedCustomerId) return customers;
+
+    const pinnedIndex = customers.findIndex((customer) => customer.id === pinnedCustomerId);
+    if (pinnedIndex <= 0) return customers;
+
+    const nextCustomers = [...customers];
+    const [pinnedCustomer] = nextCustomers.splice(pinnedIndex, 1);
+    return [pinnedCustomer, ...nextCustomers];
+  }, [deferredCustomerSearch, groupFilter, pinnedCustomerId, state?.customers, statusFilter]);
 
   const selectedCustomers = useMemo(
     () => (state?.customers || []).filter((customer) => selectedCustomerIds.has(customer.id)),
@@ -488,17 +501,25 @@ export function AdminApp() {
     const groupName = registrationGroupDrafts[request.id] || groupOptions[0] || defaultGroupOptions[0];
     setBusy(`approve-registration-${request.id}`);
     try {
-      await readJson(await fetch(`/api/admin/registration-requests/${request.id}/approve`, {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ groupName }),
-      }));
+      const result = await readJson<{ customer: Customer }>(
+        await fetch(`/api/admin/registration-requests/${request.id}/approve`, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ groupName }),
+        }),
+      );
       setRegistrationGroupDrafts((current) => {
         const next = { ...current };
         delete next[request.id];
         return next;
       });
-      setNotice("申请已分配");
+      setPinnedCustomerId(result.customer.id);
+      if (!customerMatchesFilters(result.customer, customerSearch.trim().toLowerCase(), statusFilter, groupFilter)) {
+        setCustomerSearch("");
+        setStatusFilter("all");
+        setGroupFilter("all");
+      }
+      setNotice("申请已分配，客户已置顶");
       await loadState();
     } catch (error) {
       setNotice(error instanceof Error ? error.message : "处理申请失败");
@@ -1141,8 +1162,13 @@ export function AdminApp() {
                 const locked = customer.disabled;
                 const draft = paymentDrafts[customer.id] || defaultPaymentDraft;
                 const selected = selectedCustomerIds.has(customer.id);
+                const pinned = customer.id === pinnedCustomerId;
+                const rowClassName = [
+                  selected ? "selected-row" : "",
+                  pinned ? "pinned-customer-row" : "",
+                ].filter(Boolean).join(" ") || undefined;
                 return (
-                  <tr key={customer.id} className={selected ? "selected-row" : undefined}>
+                  <tr key={customer.id} className={rowClassName}>
                     <td data-label="选择" className="select-cell">
                       <input
                         type="checkbox"
@@ -1152,7 +1178,10 @@ export function AdminApp() {
                       />
                     </td>
                     <td data-label="客户" className="customer-cell">
-                      <strong>{customer.displayName}</strong>
+                      <div className="customer-title-row">
+                        <strong>{customer.displayName}</strong>
+                        {pinned ? <span className="badge pinned">刚分配</span> : null}
+                      </div>
                       <small>{customer.qq || "未填 QQ"} · {customer.groupName || "未分组"}</small>
                       <textarea
                         className={`note-editor ${customer.notes.trim() ? "has-note" : ""}`}
