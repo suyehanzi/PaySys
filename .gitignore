@@ -2,6 +2,12 @@
 node_modules/
 data/
 backups/
+*.sqlite
+*.sqlite-wal
+*.sqlite-shm
+*.sqlite.gz.enc
+RECOVERY_KEY_DO_NOT_COMMIT.txt
+.paysys-backup-key
 .env
 .backup.env
 .monitor.env
@@ -17,3 +23,9 @@ tools/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+
+# Local handoff/check notes
+THREAD_HANDOFF.md
+task_plan.md
+findings.md
+progress.md
