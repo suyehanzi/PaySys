@@ -1,7 +1,7 @@
 {
   "name": "paysys",
   "version": "1.0.0",
-  "description": "Local lightweight subscription relay and payment admin MVP.",
+  "description": "Self-hosted subscription relay and customer management dashboard.",
   "private": true,
   "scripts": {
     "dev": "next dev",
@@ -13,9 +13,24 @@
     "test": "vitest run",
     "test:watch": "vitest"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
+  "keywords": [
+    "nextjs",
+    "typescript",
+    "sqlite",
+    "admin-dashboard",
+    "self-hosted",
+    "subscription-management"
+  ],
+  "author": "suyehanzi",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/suyehanzi/PaySys.git"
+  },
+  "homepage": "https://github.com/suyehanzi/PaySys#readme",
+  "overrides": {
+    "postcss": "8.5.10"
+  },
   "dependencies": {
     "better-sqlite3": "^12.9.0",
     "next": "^16.2.4",

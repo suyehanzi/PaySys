@@ -1,6 +1,43 @@
 # PaySys
 
-PaySys 是一个轻量订阅中转后台。它可以按群绑定不同的上游 LILISI 账号，刷新并缓存对应订阅内容，再给客户提供你自己的稳定订阅地址，同时管理客户 QQ、群名、到期时间、续费和禁用状态。
+![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)
+![Next.js](https://img.shields.io/badge/Next.js-16-black)
+![TypeScript](https://img.shields.io/badge/TypeScript-5-blue)
+![SQLite](https://img.shields.io/badge/SQLite-local-lightgrey)
+
+PaySys 是一个轻量、自托管的订阅中转与客户管理后台，适合小型私域订阅服务。它可以按群绑定不同的上游 LILISI 账号，刷新并缓存对应订阅内容，再给客户提供你自己的稳定订阅地址，同时管理 QQ、群名、备注、到期时间、续费、VIP、禁用状态和访问记录。
+
+项目目标很直接：管理员只维护一个简洁后台，客户只打开 `/portal`，不会接触上游后台地址或临时订阅链接。
+
+## 界面预览
+
+以下截图来自未登录页面，不包含真实客户数据。
+
+| 客户入口 | 后台登录 |
+|---|---|
+| ![客户入口](docs/screenshots/portal-login.png) | ![后台登录](docs/screenshots/admin-login.png) |
+
+## 适合场景
+
+- 小型私域订阅分发，需要给客户稳定入口而不是上游临时链接。
+- 管理 QQ 客户、群名、备注、到期时间、续费记录和禁用状态。
+- 多个群或渠道需要绑定不同上游账号。
+- 想用 SQLite 部署一个轻量后台，并保留加密备份能力。
+
+## 技术栈
+
+- Next.js App Router
+- TypeScript / React
+- SQLite / `better-sqlite3`
+- Vitest / ESLint
+- Windows PowerShell 运维脚本
+
+## 安全说明
+
+- 本仓库不包含 `.env`、数据库、备份文件、Bark key、后台密码或上游账号密码。
+- `.env`、`.monitor.env`、`.backup.env` 和 `data/` 都应只保存在你自己的服务器上。
+- 客户只应该访问 PaySys 生成的 `/portal` 和 `/sub/[token]`，不要把上游后台地址或临时订阅链接发给客户。
+- SQLite 数据库里可能包含客户信息和上游账号信息，备份时请使用加密备份或可信私有存储。
 
 当前主流程：
 
@@ -11,6 +48,21 @@ PaySys 是一个轻量订阅中转后台。它可以按群绑定不同的上游 
 5. Clash、Singbox、Hiddify 等客户端请求 `/sub/[token]`，只有有效客户才能拿到缓存订阅内容。
 
 QQ 群里只发 `/portal` 入口文案，不发 LILISI 后台地址，不发真实上游临时链接。
+
+## 快速开始
+
+```powershell
+npm install
+Copy-Item .env.example .env
+npm run dev
+```
+
+打开：
+
+- 后台：[http://localhost:3000/admin](http://localhost:3000/admin)
+- 客户入口：[http://localhost:3000/portal](http://localhost:3000/portal)
+
+如果没有设置 `ADMIN_PASSWORD`，本地开发默认密码是 `admin123`。正式使用前必须改掉。
 
 ## 功能
 
@@ -53,21 +105,6 @@ AGENTS.md                   给后续 Agent/Codex 读的维护说明
 - Windows PowerShell
 
 当前项目用到 SQLite 原生依赖 `better-sqlite3`，Node 版本太旧时可能安装失败或有警告。
-
-## 本地运行
-
-```powershell
-npm install
-Copy-Item .env.example .env
-npm run dev
-```
-
-打开：
-
-- 后台：[http://localhost:3000/admin](http://localhost:3000/admin)
-- 客户入口：[http://localhost:3000/portal](http://localhost:3000/portal)
-
-如果没有设置 `ADMIN_PASSWORD`，本地开发默认密码是 `admin123`。正式使用前必须改掉。
 
 ## `.env` 配置
 
