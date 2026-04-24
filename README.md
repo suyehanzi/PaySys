@@ -1,63 +1,106 @@
 # PaySys
 
+[English](README.md) | [Simplified Chinese](README.zh-CN.md)
+
 ![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)
 ![Next.js](https://img.shields.io/badge/Next.js-16-black)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5-blue)
 ![SQLite](https://img.shields.io/badge/SQLite-local-lightgrey)
 
-PaySys 是一个轻量、自托管的订阅中转与客户管理后台，适合小型私域订阅服务。它可以按群绑定不同的上游 LILISI 账号，刷新并缓存对应订阅内容，再给客户提供你自己的稳定订阅地址，同时管理 QQ、群名、备注、到期时间、续费、VIP、禁用状态和访问记录。
+PaySys is a self-hosted subscription relay and customer-access management dashboard built with Next.js, TypeScript, and SQLite.
 
-项目目标很直接：管理员只维护一个简洁后台，客户只打开 `/portal`，不会接触上游后台地址或临时订阅链接。
+It gives an operator a clean admin console for managing customers, groups, renewals, notes, VIP status, disabled accounts, access logs, upstream accounts, and encrypted database backups. Customers use a separate `/portal` flow to sign in with their registered QQ number and retrieve their own stable `/sub/[token]` subscription endpoint.
 
-## 界面预览
+The project is intentionally small enough to run on a single cloud machine, but it still demonstrates production-minded full-stack work: authentication boundaries, relational persistence, token-based access control, audit logging, environment-based secrets, deployment scripts, backup and restore tooling, tests, and release-ready documentation.
 
-以下展示后台管理、客户入口和订阅中心等主要界面。
+## Preview
 
-| 后台总览 | 客户管理 |
+The main screens cover the admin workflow, mobile approval flow, customer portal, and login surfaces.
+
+| Admin overview | Customer management |
 |---|---|
-| ![后台总览](docs/screenshots/admin-dashboard-demo.png) | ![客户管理](docs/screenshots/admin-customers-demo.png) |
+| ![Admin overview](docs/screenshots/admin-dashboard-demo.png) | ![Customer management](docs/screenshots/admin-customers-demo.png) |
 
-| 移动端分配申请 | 客户订阅中心 |
+| Mobile approval flow | Customer subscription center |
 |---|---|
-| ![移动端分配申请](docs/screenshots/admin-mobile-demo.png) | ![客户订阅中心](docs/screenshots/portal-account-demo.png) |
+| ![Mobile approval flow](docs/screenshots/admin-mobile-demo.png) | ![Customer subscription center](docs/screenshots/portal-account-demo.png) |
 
-| 客户入口 | 后台登录 |
+| Customer entry | Admin login |
 |---|---|
-| ![客户入口](docs/screenshots/portal-login.png) | ![后台登录](docs/screenshots/admin-login.png) |
+| ![Customer entry](docs/screenshots/portal-login.png) | ![Admin login](docs/screenshots/admin-login.png) |
 
-## 适合场景
+## Why This Project Is Useful
 
-- 小型私域订阅分发，需要给客户稳定入口而不是上游临时链接。
-- 管理 QQ 客户、群名、备注、到期时间、续费记录和禁用状态。
-- 多个群或渠道需要绑定不同上游账号。
-- 想用 SQLite 部署一个轻量后台，并保留加密备份能力。
+PaySys is useful when a small team needs to operate a customer-facing subscription access workflow without exposing upstream provider links or manually editing spreadsheets.
 
-## 技术栈
+It turns a fragile manual process into a managed product surface:
 
-- Next.js App Router
-- TypeScript / React
-- SQLite / `better-sqlite3`
-- Vitest / ESLint
-- Windows PowerShell 运维脚本
+- Customers get a stable portal and tokenized subscription URL.
+- Operators get searchable customer records, renewal history, notes, group routing, and status controls.
+- Disabled or expired accounts stop receiving subscription content through the relay.
+- Upstream subscription content is cached and served through controlled endpoints.
+- Database backups can be encrypted and pushed to a separate private backup repository.
+- The app can be deployed and monitored with repeatable PowerShell scripts on a Windows cloud machine.
 
-## 安全说明
+The value is in the full operational loop: a real admin workflow connected to persistence, access control, operational scripts, tests, and deployment documentation.
 
-- 本仓库不包含 `.env`、数据库、备份文件、Bark key、后台密码或上游账号密码。
-- `.env`、`.monitor.env`、`.backup.env` 和 `data/` 都应只保存在你自己的服务器上。
-- 客户只应该访问 PaySys 生成的 `/portal` 和 `/sub/[token]`，不要把上游后台地址或临时订阅链接发给客户。
-- SQLite 数据库里可能包含客户信息和上游账号信息，备份时请使用加密备份或可信私有存储。
+## Engineering Highlights
 
-当前主流程：
+- Full-stack Next.js App Router application with server-rendered pages and API routes.
+- TypeScript data contracts around customer, payment, registration, upstream, and access-log flows.
+- SQLite persistence through `better-sqlite3`, including schema migration and focused DB tests.
+- Separate admin and customer authentication layers using HTTP-only cookies.
+- Token-based subscription access through `/sub/[token]`.
+- Group-aware upstream account routing, allowing different customer groups to use different upstream credentials.
+- Customer-facing portal with QQ login, self-service registration, subscription link display, and QR code generation.
+- Admin dashboard with registration approval, renewal tracking, inline notes, filtering, bulk VIP updates, and access logs.
+- Encrypted SQLite backup and restore workflow with AES-256-GCM.
+- Windows-friendly deployment and monitoring scripts for a small cloud-machine setup.
+- Vitest, ESLint, production build checks, and `npm audit` workflow documented for maintenance.
 
-1. 客户打开 `/portal`，可输入 QQ 登录；未登记客户可提交昵称和 QQ 申请。
-2. 管理员在 `/admin` 查看注册申请，选择 `1群`、`2群` 等群名并分配。
-3. 客户付款后，管理员登记续费。
-4. 客户点击“获取订阅”，页面显示 `/sub/[token]` 订阅链接和二维码。
-5. Clash、Singbox、Hiddify 等客户端请求 `/sub/[token]`，只有有效客户才能拿到缓存订阅内容。
+## Architecture
 
-QQ 群里只发 `/portal` 入口文案，不发 LILISI 后台地址或上游临时链接。
+| Layer | Responsibility |
+|---|---|
+| `src/app` | Next.js App Router pages and API routes |
+| `src/components` | Admin and customer-facing React interfaces |
+| `src/lib/db.ts` | SQLite schema, migrations, customer, payment, cache, registration, and log operations |
+| `src/lib/auth.ts` | Admin session cookies |
+| `src/lib/user-auth.ts` | Customer portal session cookies |
+| `src/lib/upstream.ts` | Upstream account login, subscription refresh, and cache retrieval |
+| `scripts/` | Backup, restore, monitoring, and operational helpers |
+| `docs/screenshots/` | Public README screenshots |
 
-## 快速开始
+Main request flow:
+
+1. A customer opens `/portal` and signs in with a registered QQ number.
+2. The portal issues an HTTP-only customer session cookie.
+3. The customer requests their subscription endpoint.
+4. PaySys validates account status, expiry, disabled state, and token ownership.
+5. The relay returns cached upstream subscription content through `/sub/[token]`.
+6. Admin pages show customer state, renewal records, and access logs.
+
+## Security Model
+
+- Runtime secrets are configured through `.env` and are not committed.
+- Admin access uses a separate password-protected session.
+- Customer access uses a separate QQ-based portal session.
+- The upstream dashboard URL and temporary upstream subscription URL are not exposed to customers.
+- Expired, disabled, or invalid-token customers cannot retrieve subscription content.
+- Real SQLite data, encrypted backups, recovery keys, and local environment files are ignored by Git.
+- Production deployments should use HTTPS when exposed outside the local machine.
+
+This is a lightweight access-control layer for a trusted small-team environment. QQ-only customer login is intentionally simple; larger deployments should add stronger verification such as one-time codes or CAPTCHA.
+
+## Getting Started
+
+Recommended runtime:
+
+- Node.js `20.19+` or Node.js `22 LTS`
+- npm
+- Windows PowerShell for the included operational scripts
+
+Install and run locally:
 
 ```powershell
 npm install
@@ -65,207 +108,50 @@ Copy-Item .env.example .env
 npm run dev
 ```
 
-打开：
+Open:
 
-- 后台：[http://localhost:3000/admin](http://localhost:3000/admin)
-- 客户入口：[http://localhost:3000/portal](http://localhost:3000/portal)
+- Admin dashboard: [http://localhost:3000/admin](http://localhost:3000/admin)
+- Customer portal: [http://localhost:3000/portal](http://localhost:3000/portal)
 
-如果没有设置 `ADMIN_PASSWORD`，本地开发默认密码是 `admin123`。正式使用前必须改掉。
+If `ADMIN_PASSWORD` is not set, local development falls back to `admin123`. Change it before any real deployment.
 
-## 功能
+## Environment Variables
 
-- 后台登录：`/admin` 使用 `.env` 里的 `ADMIN_PASSWORD`。
-- 自助申请：客户可在 `/portal` 提交昵称和 QQ；管理员收到申请后分配群并创建客户。
-- 客户管理：昵称、QQ、群名、备注、到期时间、禁用状态、VIP；客户列表里可直接编辑备注，离开输入框自动保存。
-- 群名选择：新增客户时默认支持 `1群`、`2群`，也会自动带入已绑定上游账号的群名。
-- 群筛选与批量处理：客户列表可按群筛选，并支持批量标记或取消 VIP。
-- 上游账号：后台可为不同群绑定不同 LILISI 账号；客户拉取订阅时按所属群使用对应账号缓存。
-- 续费登记：默认金额 `45`，默认天数 `180`，到期时间按续费天数自动延长。
-- 访问统计：后台记录客户点击“获取订阅”的次数和最近时间。
-- 获取明细：后台展示最近获取记录，包含客户、动作、时间、IP、设备/客户端等信息。
-- 数据重置：清空付款记录和获取次数，保留备注，重置 token 和登录状态。
-- 删除账号：删除客户及其付款记录、访问记录。
-- 客户入口：`/portal` 输入 QQ 登录，同一设备会自动记住。
-- 订阅中转：`/sub/[token]` 返回缓存订阅内容，过期、禁用、无效 token 不返回订阅内容。
-- 上游刷新：支持 LILISI API 自动登录获取 `subscribe_url`；未绑定群会继续使用 `.env` 里的旧全局账号作为兜底。
-
-## 目录
-
-```text
-src/app/                    Next.js App Router 页面和 API
-src/components/             前端组件
-src/lib/db.ts               SQLite 表结构和数据操作
-src/lib/upstream.ts         LILISI 自动刷新和临时链接抓取
-src/lib/auth.ts             管理员登录 Cookie
-src/lib/user-auth.ts        客户 QQ 登录 Cookie
-data/paysys.sqlite          本地数据库，正式使用后要备份
-.env                        本地密钥，不要发给别人
-.env.example                环境变量模板
-AGENTS.md                   给后续 Agent/Codex 读的维护说明
-```
-
-## 环境要求
-
-建议云电脑安装：
-
-- Node.js `20.19+` 或 Node.js `22 LTS`
-- npm
-- Windows PowerShell
-
-当前项目用到 SQLite 原生依赖 `better-sqlite3`，Node 版本太旧时可能安装失败或有警告。
-
-## `.env` 配置
-
-复制 `.env.example` 为 `.env` 后填写：
+Copy `.env.example` to `.env` and configure:
 
 ```env
-ADMIN_PASSWORD=后台密码
-ADMIN_SESSION_SECRET=随机长字符串
-LILISI_EMAIL=你的 LILISI 账号
-LILISI_PASSWORD=你的 LILISI 密码
+ADMIN_PASSWORD=change-me
+ADMIN_SESSION_SECRET=replace-with-a-long-random-secret
+LILISI_EMAIL=your-upstream-account@example.com
+LILISI_PASSWORD=your-upstream-password
 PAYSYS_DB_PATH=./data/paysys.sqlite
 ```
 
-说明：
+Notes:
 
-- `ADMIN_PASSWORD`：后台登录密码，正式使用必须设置。
-- `ADMIN_SESSION_SECRET`：Cookie 签名密钥，建议设置为随机长字符串。
-- `LILISI_EMAIL` / `LILISI_PASSWORD`：自动刷新上游订阅时使用。
-- `PAYSYS_DB_PATH`：数据库位置，默认是 `./data/paysys.sqlite`。
+- Keep `.env` private.
+- Keep `ADMIN_SESSION_SECRET` stable after deployment, or existing sessions will be invalidated.
+- Treat `data/` as sensitive because it stores customer records and upstream account configuration.
 
-不要把 `.env` 发给别人，也不要提交到公开仓库。
+## Core Features
 
-## 云电脑部署
+- Admin login and session management.
+- Customer portal login by registered QQ number.
+- Customer self-registration requests.
+- Registration approval with group assignment.
+- Customer CRUD with QQ, group, notes, expiry, disabled state, and VIP flag.
+- Inline note editing from the admin customer table.
+- Renewal registration with default amount and duration.
+- Payment history and deletion.
+- Customer access logs for portal login, subscription retrieval, and client fetches.
+- Token reset and customer data reset.
+- Group-specific upstream account binding.
+- Cached upstream subscription content.
+- Customer subscription link and QR code display.
+- Internal admin-only testing endpoint for group-level subscription validation.
+- Encrypted SQLite backup and restore scripts.
 
-第一次部署：
-
-```powershell
-cd D:\path\to\PaySys
-npm install
-Copy-Item .env.example .env
-notepad .env
-npm run build
-npm run start -- -p 3000
-```
-
-然后在云电脑浏览器打开：
-
-```text
-http://localhost:3000/admin
-```
-
-如果要让外部手机或客户访问，需要满足至少一个条件：
-
-- 云电脑有公网 IP，并且放行 3000 端口。
-- 或者使用反向代理、内网穿透、域名和 HTTPS。
-
-正式对外建议使用 HTTPS。HTTP 能跑，但 Cookie 和后台密码在公网环境下不够稳妥。
-
-## 服务器重启后启动
-
-如果部署在 Windows 云电脑或服务器上，可以用仓库里的监控脚本启动和检查：
-
-```powershell
-cd <PaySys 项目路径>
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\paysys-monitor.ps1 -ForceNotify
-```
-
-它会自动检查并启动：
-
-- PaySys 服务
-- Cloudflare 隧道服务
-- Bark 状态推送
-
-如果你使用固定域名，建议在 `.monitor.env` 里配置：
-
-```env
-PUBLIC_BASE_URL=https://your-domain.example
-CLOUDFLARED_SERVICE_NAME=Cloudflared
-CLOUDFLARED_TUNNEL_NAME=paysys
-BARK_BASE_URL=https://api.day.app/your-bark-key
-```
-
-`.monitor.env` 不要提交到 GitHub。脚本发送 Bark 时会推送当前客户页和后台页链接。
-
-Cloudflare Tunnel 已安装为 Windows 服务：
-
-```powershell
-Get-Service Cloudflared
-Restart-Service Cloudflared
-```
-
-如果要查看服务启动命令：
-
-```powershell
-sc.exe qc Cloudflared
-```
-
-如果 Cloudflared 重启后域名返回 `530`，优先检查你的 `config.yml`，确认隧道名称、域名路由和 `edge-ip-version` 等配置正确，然后重启 `Cloudflared` 服务。
-
-## 数据库备份
-
-PaySys 的客户、付款、备注、VIP、上游账号和缓存信息都保存在本地 SQLite 数据库里。为避免服务器回收或磁盘损坏导致数据丢失，项目内置了加密备份脚本：
-
-- 备份脚本：`scripts/backup-paysys.ps1`
-- 加密脚本：`scripts/backup-paysys.js`
-- 恢复脚本：`scripts/restore-paysys-backup.js`
-- 默认备份目录：项目同级的 `PaySysBackups`
-- 可选远端仓库：通过 `.backup.env` 里的 `PAYSYS_BACKUP_REMOTE` 配置
-- 可选 Windows 计划任务：例如 `PaySys Database Backup`
-
-备份文件位于备份仓库的 `backups/YYYY-MM/` 目录，格式为 `.sqlite.gz.enc`。备份内容使用 AES-256-GCM 加密，恢复口令不会提交到 GitHub。
-
-手动备份：
-
-```powershell
-cd <PaySys 项目路径>
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\backup-paysys.ps1
-```
-
-恢复到临时数据库文件：
-
-```powershell
-cd <PaySys 项目路径>
-node .\scripts\restore-paysys-backup.js <PaySysBackups 路径>\backups\YYYY-MM\备份文件.sqlite.gz.enc .\data\restored-paysys.sqlite
-```
-
-恢复前应先停止 PaySys 服务，并确认恢复口令仍可用。不要把恢复口令、明文数据库或临时恢复库提交到 GitHub。
-
-## 日常使用
-
-1. 管理员打开 `/admin`。
-2. 在“上游账号”里添加群名和对应 LILISI 账号，例如 `1群`、`2群`。
-3. 客户自行打开 `/portal`，点“新用户申请”，填写昵称和 QQ。
-4. 管理员在“注册申请”里选择群名并点“分配”，系统会创建未付款客户。
-5. 后续需要补充或修改备注时，直接在客户列表的备注框里编辑，离开输入框后自动保存。
-6. 客户付款后，在客户列表里登记续费，默认 `45` 元、`180` 天。
-7. 点“复制文案”，把文案发到 QQ。
-8. 客户打开 `/portal`，输入 QQ，点击“获取订阅”。
-9. 客户复制 `/sub/[token]` 或扫码导入客户端。
-
-VIP 客户可随时订阅，不受未登记或到期限制；禁用状态仍会拦截订阅。普通客户过期或禁用后，`/sub/[token]` 会返回错误，不返回订阅内容。
-
-## 内部测试入口
-
-后台的“内部测试”按钮会打开 `/admin/unlimited`。管理员可以选择 `1群`、`2群` 等群名，生成对应群的内部测试订阅链接和二维码。
-
-这个测试链接不绑定具体客户，不统计客户拉取次数，也不会检查客户到期状态；它只适合管理员内部验证不同群的上游缓存。不要把内部测试链接发到群里。
-
-## 后台记录
-
-后台会保留客户获取订阅相关记录。客户列表里显示订阅拉取次数和最近拉取时间；页面下方的“最近获取记录”显示更完整的明细。
-
-当前记录字段包括：
-
-- 客户昵称、QQ、群名
-- 动作类型：客户登录、获取入口、订阅拉取、刷新订阅等
-- 发生时间
-- IP
-- 设备或客户端，例如 Clash、Stash、Shadowrocket、浏览器等
-
-数据库会持续保存完整访问日志，后台接口默认返回最近 `120` 条，页面初次渲染前 `80` 条，可点击“显示更多”继续查看。
-
-## 常用命令
+## Common Commands
 
 ```powershell
 npm run dev
@@ -275,17 +161,54 @@ npm run build
 npm run start -- -p 3000
 ```
 
-安全检查：
+Dependency security check:
 
 ```powershell
 npm audit --registry=https://registry.npmjs.org --audit-level=high
 ```
 
-有些 npm 镜像不支持 audit，如果看到 `NOT_IMPLEMENTED`，用上面的官方 registry 参数。
+Some npm mirrors do not implement `audit`, so the official registry is used for the security check.
 
-## 备份
+## Deployment
 
-正式使用后，最重要的是数据库：
+Production build:
+
+```powershell
+npm install
+Copy-Item .env.example .env
+notepad .env
+npm run build
+npm run start -- -p 3000
+```
+
+For external phone or customer access, use one of:
+
+- A public server IP with the required firewall rules.
+- A reverse proxy with HTTPS.
+- A tunnel service such as Cloudflare Tunnel.
+
+For Windows cloud-machine deployments, the repository includes a monitoring script:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\paysys-monitor.ps1 -ForceNotify
+```
+
+Optional `.monitor.env` settings:
+
+```env
+PUBLIC_BASE_URL=https://your-domain.example
+CLOUDFLARED_SERVICE_NAME=Cloudflared
+CLOUDFLARED_TUNNEL_NAME=paysys
+BARK_BASE_URL=https://api.day.app/your-bark-key
+```
+
+Do not commit `.monitor.env`.
+
+## Backup And Restore
+
+PaySys stores customer, payment, access-log, VIP, upstream-account, and cache data in SQLite.
+
+Important files:
 
 ```text
 data/paysys.sqlite
@@ -293,46 +216,50 @@ data/paysys.sqlite-wal
 data/paysys.sqlite-shm
 ```
 
-备份前最好先停掉服务，再复制整个 `data` 文件夹。
+Encrypted backup tooling:
 
-简单备份命令：
+- `scripts/backup-paysys.ps1`
+- `scripts/backup-paysys.js`
+- `scripts/restore-paysys-backup.js`
 
-```powershell
-Stop-Process -Name node -ErrorAction SilentlyContinue
-Compress-Archive -Path data -DestinationPath "backup-paysys-data.zip" -Force
-```
-
-恢复时，把备份里的 `data` 文件夹放回项目根目录即可。
-
-## 迁移到另一台云电脑
-
-建议复制这些内容：
-
-- `src`
-- `package.json`
-- `package-lock.json`
-- `next.config.ts`
-- `tsconfig.json`
-- `eslint.config.mjs`
-- `vitest.config.ts`
-- `.env`
-- `data`
-- `README.md`
-- `AGENTS.md`
-
-不要复制 `node_modules` 和 `.next`，到新机器后重新执行：
+Manual backup:
 
 ```powershell
-npm install
-npm run build
-npm run start -- -p 3000
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\backup-paysys.ps1
 ```
 
-## 注意事项
+Restore to a temporary database file:
 
-- 绑定了上游账号的群会使用独立订阅缓存；未绑定群会使用 `.env` 里的旧全局账号缓存。
-- 后台绑定的上游账号密码会保存在本地 SQLite 数据库里，`data` 备份需要当作密钥文件保管。
-- 系统能控制客户以后是否还能通过 `/sub/[token]` 获取订阅，但不能收回客户已经导入客户端的旧节点配置。
-- 自动刷新依赖 LILISI 接口。如果账号密码错误、接口变化或风控出现，会保留旧缓存并记录错误。
-- 当前客户登录只校验 QQ 号，适合你的小规模私域场景；如果以后用户变多，可以再加验证码或一次性口令。
-- `/u/[token]` 是早期个人入口页面，当前推荐使用 `/portal` QQ 登录入口。
+```powershell
+node .\scripts\restore-paysys-backup.js <PaySysBackups path>\backups\YYYY-MM\backup.sqlite.gz.enc .\data\restored-paysys.sqlite
+```
+
+Backup files are AES-256-GCM encrypted. Do not commit recovery keys, plaintext SQLite databases, encrypted backup archives, or temporary restored databases.
+
+## Repository Layout
+
+```text
+src/app/                    Next.js pages and API routes
+src/components/             React UI components
+src/lib/db.ts               SQLite schema and data operations
+src/lib/upstream.ts         Upstream refresh and subscription cache logic
+src/lib/auth.ts             Admin session helpers
+src/lib/user-auth.ts        Customer session helpers
+scripts/                    Backup, restore, and monitoring scripts
+docs/screenshots/           README screenshots
+.env.example                Environment template
+.monitor.env.example        Monitor script template
+.backup.env.example         Backup script template
+AGENTS.md                   Maintenance notes for future agent runs
+```
+
+## Known Limits
+
+- All customer authentication currently relies on QQ number ownership in a small trusted environment.
+- The app controls future `/sub/[token]` access, but it cannot revoke node configurations already imported into a client.
+- Upstream refresh depends on the upstream provider API and can fail if credentials, API behavior, or risk-control rules change.
+- SQLite is a strong fit for a small deployment, but larger multi-operator setups would likely need a managed database and stronger audit controls.
+
+## License
+
+MIT
