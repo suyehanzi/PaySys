@@ -172,6 +172,15 @@ cd <PaySys 项目路径>
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\paysys-monitor.ps1 -ForceNotify
 ```
 
+如果希望 Windows 登录后自动启动或恢复 PaySys，可以注册计划任务：
+
+```powershell
+cd <PaySys 项目路径>
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\register-paysys-autostart.ps1
+```
+
+这个计划任务会在当前 Windows 用户登录后调用 `scripts\paysys-monitor.ps1 -NoNotify`，自动检查 PaySys 服务和 Cloudflare 隧道，不会发送开机通知。
+
 它会自动检查并启动：
 
 - PaySys 服务

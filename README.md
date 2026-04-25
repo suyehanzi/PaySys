@@ -193,6 +193,14 @@ For Windows cloud-machine deployments, the repository includes a monitoring scri
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\paysys-monitor.ps1 -ForceNotify
 ```
 
+To start or recover PaySys automatically after the Windows user logs in, register a Scheduled Task:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\register-paysys-autostart.ps1
+```
+
+The task runs `scripts/paysys-monitor.ps1 -NoNotify` after login, so it can recover both the local PaySys process and the configured Cloudflare Tunnel service without sending a startup notification.
+
 Optional `.monitor.env` settings:
 
 ```env
