@@ -5,6 +5,7 @@ import { Icon } from "@/components/Icon";
 
 export function PortalLogin() {
   const [qq, setQq] = useState("");
+  const [password, setPassword] = useState("");
   const [displayName, setDisplayName] = useState("");
   const [registerQq, setRegisterQq] = useState("");
   const [busy, setBusy] = useState(false);
@@ -20,7 +21,7 @@ export function PortalLogin() {
       const response = await fetch("/api/portal/login", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ qq }),
+        body: JSON.stringify({ qq, password }),
       });
       const body = await response.json().catch(() => ({}));
       if (!response.ok) {
@@ -74,6 +75,16 @@ export function PortalLogin() {
               placeholder="输入 QQ 号"
               autoFocus
               required
+            />
+          </label>
+          <label>
+            <span className="sr-only">密码</span>
+            <input
+              type="password"
+              value={password}
+              onChange={(event) => setPassword(event.target.value)}
+              autoComplete="current-password"
+              placeholder="密码（如已设置）"
             />
           </label>
           {error ? <p className="error-text">{error}</p> : null}

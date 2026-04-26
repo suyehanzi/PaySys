@@ -73,6 +73,7 @@ function statusLabel(status: StatusFilter) {
 
 function accessActionLabel(action: string) {
   if (action === "portal_get_subscription") return "获取入口";
+  if (action === "portal_password_update") return "修改密码";
   if (action === "subscription_fetch") return "订阅拉取";
   if (action === "portal_login") return "客户登录";
   if (action === "user_refresh") return "刷新订阅";

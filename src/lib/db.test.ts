@@ -138,17 +138,38 @@ describe("customer database", () => {
     });
   });
 
-  it("summarizes subscription fetches in the customer list", () => {
-    const customer = db.createCustomer({ displayName: "汇总用户", qq: "10004", groupName: "二群" });
-    db.logAccess({ customerId: customer.id, action: "portal_login" });
-    db.logAccess({ customerId: customer.id, action: "portal_get_subscription" });
-    db.logAccess({ customerId: customer.id, action: "subscription_fetch" });
-    db.logAccess({ customerId: customer.id, action: "user_refresh" });
+  it("summarizes portal subscription clicks and sorts customers by latest pull time", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-04-25T01:00:00.000Z"));
+    const older = db.createCustomer({ displayName: "较早拉取", qq: "10004", groupName: "二群" });
+    const never = db.createCustomer({ displayName: "未拉取", qq: "10005", groupName: "二群" });
+    const newer = db.createCustomer({ displayName: "最新拉取", qq: "10006", groupName: "二群" });
 
-    const listed = db.listCustomers().find((item) => item.id === customer.id);
+    db.logAccess({ customerId: newer.id, action: "subscription_fetch" });
+    db.logAccess({ customerId: older.id, action: "portal_get_subscription" });
+    vi.setSystemTime(new Date("2026-04-25T02:00:00.000Z"));
+    db.logAccess({ customerId: newer.id, action: "portal_get_subscription" });
+    db.logAccess({ customerId: newer.id, action: "user_refresh" });
 
-    expect(listed?.subscriptionClicks).toBe(1);
-    expect(listed?.lastSubscriptionClickAt).not.toBeNull();
+    const listed = db.listCustomers();
+
+    expect(listed.map((item) => item.id).slice(0, 3)).toEqual([newer.id, older.id, never.id]);
+    expect(listed.find((item) => item.id === newer.id)?.subscriptionClicks).toBe(1);
+    expect(listed.find((item) => item.id === older.id)?.lastSubscriptionClickAt).not.toBeNull();
+  });
+
+  it("stores customer portal passwords as hashes", () => {
+    const customer = db.createCustomer({ displayName: "密码用户", qq: "10007" });
+
+    expect(customer.hasPortalPassword).toBe(false);
+    expect(db.verifyCustomerPortalPassword(customer.id, "secret123")).toBe(false);
+
+    const updated = db.setCustomerPortalPassword(customer.id, "secret123")!;
+
+    expect(updated.hasPortalPassword).toBe(true);
+    expect(updated.passwordSetAt).not.toBeNull();
+    expect(db.verifyCustomerPortalPassword(customer.id, "secret123")).toBe(true);
+    expect(db.verifyCustomerPortalPassword(customer.id, "wrong123")).toBe(false);
   });
 
   it("keeps upstream caches separated by customer group", () => {

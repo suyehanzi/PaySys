@@ -15,6 +15,8 @@ export type Customer = {
   isVip: boolean;
   notes: string;
   sessionVersion: number;
+  hasPortalPassword: boolean;
+  passwordSetAt: string | null;
   createdAt: string;
   updatedAt: string;
   subscriptionClicks: number;
@@ -94,6 +96,8 @@ type CustomerRow = {
   is_vip?: 0 | 1;
   notes: string | null;
   session_version?: number;
+  password_hash?: string | null;
+  password_set_at?: string | null;
   created_at: string;
   updated_at: string;
   subscription_clicks?: number;
@@ -280,6 +284,12 @@ function migrate(db: Database.Database): void {
   if (!customerColumnNames.has("is_vip")) {
     db.exec("ALTER TABLE customers ADD COLUMN is_vip INTEGER NOT NULL DEFAULT 0");
   }
+  if (!customerColumnNames.has("password_hash")) {
+    db.exec("ALTER TABLE customers ADD COLUMN password_hash TEXT NOT NULL DEFAULT ''");
+  }
+  if (!customerColumnNames.has("password_set_at")) {
+    db.exec("ALTER TABLE customers ADD COLUMN password_set_at TEXT");
+  }
 
   const upstreamAccountColumns = db.prepare("PRAGMA table_info(upstream_accounts)").all() as Array<{ name: string }>;
   const upstreamAccountColumnNames = new Set(upstreamAccountColumns.map((column) => column.name));
@@ -327,6 +337,8 @@ function mapCustomer(row: CustomerRow): Customer {
     isVip: row.is_vip === 1,
     notes: row.notes || "",
     sessionVersion: row.session_version || 1,
+    hasPortalPassword: Boolean(row.password_hash),
+    passwordSetAt: row.password_set_at || null,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     subscriptionClicks: row.subscription_clicks || 0,
@@ -415,6 +427,49 @@ function newToken(): string {
   return crypto.randomBytes(18).toString("base64url");
 }
 
+function hashPortalPassword(password: string): string {
+  const salt = crypto.randomBytes(16).toString("base64url");
+  const hash = crypto.scryptSync(password, salt, 64).toString("base64url");
+  return `scrypt:${salt}:${hash}`;
+}
+
+function verifyPortalPasswordHash(password: string, storedHash: string | null | undefined): boolean {
+  if (!storedHash) return false;
+  const [algorithm, salt, expectedHash] = storedHash.split(":");
+  if (algorithm !== "scrypt" || !salt || !expectedHash) return false;
+
+  try {
+    const actual = crypto.scryptSync(password, salt, 64);
+    const expected = Buffer.from(expectedHash, "base64url");
+    return actual.length === expected.length && crypto.timingSafeEqual(actual, expected);
+  } catch {
+    return false;
+  }
+}
+
+export function verifyCustomerPortalPassword(customerId: number, password: string): boolean {
+  const row = getDb()
+    .prepare("SELECT password_hash FROM customers WHERE id = ?")
+    .get(customerId) as { password_hash: string | null } | undefined;
+  return verifyPortalPasswordHash(password, row?.password_hash);
+}
+
+export function setCustomerPortalPassword(customerId: number, password: string): Customer | null {
+  const nextPassword = password.trim();
+  if (nextPassword.length < 6) {
+    throw new Error("密码至少 6 位");
+  }
+  if (nextPassword.length > 128) {
+    throw new Error("密码太长");
+  }
+
+  const timestamp = nowIso();
+  const result = getDb()
+    .prepare("UPDATE customers SET password_hash = ?, password_set_at = ?, updated_at = ? WHERE id = ?")
+    .run(hashPortalPassword(nextPassword), timestamp, timestamp, customerId);
+  return result.changes ? getCustomerById(customerId) : null;
+}
+
 export function listCustomers(): Customer[] {
   const rows = getDb()
     .prepare(
@@ -424,13 +479,13 @@ export function listCustomers(): Customer[] {
           SELECT COUNT(*)
           FROM access_logs
           WHERE access_logs.customer_id = customers.id
-            AND access_logs.action = 'subscription_fetch'
+            AND access_logs.action = 'portal_get_subscription'
         ), 0) AS subscription_clicks,
         (
           SELECT MAX(access_logs.created_at)
           FROM access_logs
           WHERE access_logs.customer_id = customers.id
-            AND access_logs.action = 'subscription_fetch'
+            AND access_logs.action = 'portal_get_subscription'
         ) AS last_subscription_click_at,
         COALESCE((
           SELECT COUNT(*)
@@ -438,7 +493,12 @@ export function listCustomers(): Customer[] {
           WHERE payments.customer_id = customers.id
         ), 0) AS payment_count
        FROM customers
-       ORDER BY customers.disabled ASC, customers.expires_at ASC, customers.id DESC`,
+       ORDER BY
+         customers.disabled ASC,
+         last_subscription_click_at IS NULL ASC,
+         last_subscription_click_at DESC,
+         customers.expires_at ASC,
+         customers.id DESC`,
     )
     .all() as CustomerRow[];
   return rows.map(mapCustomer);

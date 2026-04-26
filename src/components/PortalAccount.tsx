@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { FormEvent, useState } from "react";
 import QRCode from "qrcode";
 import { Icon } from "@/components/Icon";
 import { copyToClipboard } from "@/lib/clipboard";
@@ -13,8 +13,13 @@ export function PortalAccount({ customer, status }: { customer: Customer; status
   const [manualCopy, setManualCopy] = useState("");
   const [revealedUrl, setRevealedUrl] = useState("");
   const [qrDataUrl, setQrDataUrl] = useState("");
+  const [hasPortalPassword, setHasPortalPassword] = useState(customer.hasPortalPassword);
+  const [password, setPassword] = useState("");
+  const [passwordConfirm, setPasswordConfirm] = useState("");
+  const [passwordBusy, setPasswordBusy] = useState(false);
 
   const active = status === "active";
+  const canGetSubscription = active && hasPortalPassword;
   const statusText =
     status === "active"
       ? customer.isVip
@@ -47,6 +52,10 @@ export function PortalAccount({ customer, status }: { customer: Customer; status
 
   async function copySubscription() {
     setNotice("");
+    if (!hasPortalPassword) {
+      setNotice("请先设置登录密码。");
+      return;
+    }
     const response = await fetch("/api/portal/subscription", { method: "POST" });
     const body = await response.json().catch(() => ({}));
     if (!response.ok) {
@@ -78,6 +87,35 @@ export function PortalAccount({ customer, status }: { customer: Customer; status
     setNotice("请手动复制下方链接。");
   }
 
+  async function savePassword(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setNotice("");
+    if (password !== passwordConfirm) {
+      setNotice("两次密码不一致。");
+      return;
+    }
+    setPasswordBusy(true);
+    try {
+      const response = await fetch("/api/portal/password", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ password }),
+      });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(body.error || "保存失败");
+      }
+      setHasPortalPassword(true);
+      setPassword("");
+      setPasswordConfirm("");
+      setNotice("密码已保存。");
+    } catch (err) {
+      setNotice(err instanceof Error ? err.message : "保存失败");
+    } finally {
+      setPasswordBusy(false);
+    }
+  }
+
   async function logout() {
     await fetch("/api/portal/logout", { method: "POST" });
     window.location.href = "/portal";
@@ -104,13 +142,52 @@ export function PortalAccount({ customer, status }: { customer: Customer; status
         <section className="portal-section">
           <div className="section-heading">
             <div>
+              <p className="eyebrow">安全</p>
+              <h2>{hasPortalPassword ? "登录密码" : "设置登录密码"}</h2>
+            </div>
+          </div>
+          <form className="stack portal-password-form" onSubmit={savePassword}>
+            <label>
+              <span className="sr-only">新密码</span>
+              <input
+                type="password"
+                value={password}
+                onChange={(event) => setPassword(event.target.value)}
+                autoComplete="new-password"
+                placeholder={hasPortalPassword ? "新密码" : "设置密码"}
+                minLength={6}
+                required
+              />
+            </label>
+            <label>
+              <span className="sr-only">确认密码</span>
+              <input
+                type="password"
+                value={passwordConfirm}
+                onChange={(event) => setPasswordConfirm(event.target.value)}
+                autoComplete="new-password"
+                placeholder="确认密码"
+                minLength={6}
+                required
+              />
+            </label>
+            <button className="secondary" disabled={passwordBusy}>
+              <Icon name="save" />
+              {passwordBusy ? "保存中..." : "保存密码"}
+            </button>
+          </form>
+        </section>
+
+        <section className="portal-section">
+          <div className="section-heading">
+            <div>
               <p className="eyebrow">1</p>
               <h2>订阅链接</h2>
             </div>
           </div>
-          {revealedUrl || !active ? (
+          {revealedUrl || !active || !hasPortalPassword ? (
             <div className="subscription-box">
-              <span>{active ? revealedUrl : "暂不可获取"}</span>
+              <span>{active ? revealedUrl || "先设置登录密码" : "暂不可获取"}</span>
             </div>
           ) : (
             <p className="muted-copy">点击“获取订阅”后显示。</p>
@@ -124,13 +201,13 @@ export function PortalAccount({ customer, status }: { customer: Customer; status
               <h2>扫描二维码订阅</h2>
             </div>
           </div>
-          {active && qrDataUrl ? (
+          {canGetSubscription && qrDataUrl ? (
             <div className="subscribe-qr">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src={qrDataUrl} alt="订阅二维码" />
             </div>
           ) : active ? (
-            <p className="muted-copy">点击“获取订阅”后显示。</p>
+            <p className="muted-copy">{hasPortalPassword ? "点击“获取订阅”后显示。" : "先设置登录密码。"}</p>
           ) : (
             <p className="error-text">{inactiveMessage}</p>
           )}
@@ -143,7 +220,7 @@ export function PortalAccount({ customer, status }: { customer: Customer; status
         </section>
 
         <div className="portal-action">
-          <button className="primary" onClick={copySubscription} disabled={!active}>
+          <button className="primary" onClick={copySubscription} disabled={!canGetSubscription}>
             <Icon name="copy" />
             获取订阅
           </button>

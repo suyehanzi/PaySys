@@ -21,6 +21,9 @@ export async function POST(request: Request): Promise<NextResponse> {
   if (customer.sessionVersion !== session.sessionVersion) {
     return jsonError("登录已失效，请重新输入 QQ 号", 401);
   }
+  if (!customer.hasPortalPassword) {
+    return jsonError("请先设置登录密码", 403);
+  }
 
   logAccess({
     customerId: customer.id,
