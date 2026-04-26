@@ -172,6 +172,17 @@ describe("customer database", () => {
     expect(db.verifyCustomerPortalPassword(customer.id, "wrong123")).toBe(false);
   });
 
+  it("resets a customer portal password and invalidates user sessions", () => {
+    const customer = db.setCustomerPortalPassword(db.createCustomer({ displayName: "忘密用户", qq: "10008" }).id, "secret123")!;
+
+    const reset = db.resetCustomerPortalPassword(customer.id)!;
+
+    expect(reset.hasPortalPassword).toBe(false);
+    expect(reset.passwordSetAt).toBeNull();
+    expect(reset.sessionVersion).toBe(customer.sessionVersion + 1);
+    expect(db.verifyCustomerPortalPassword(customer.id, "secret123")).toBe(false);
+  });
+
   it("keeps upstream caches separated by customer group", () => {
     const first = db.createUpstreamAccount({
       groupName: "1群",
@@ -212,7 +223,7 @@ describe("customer database", () => {
   });
 
   it("approves registration requests into unpaid customers assigned to a group", () => {
-    const request = db.createRegistrationRequest({ displayName: "申请客户", qq: "20002" });
+    const request = db.createRegistrationRequest({ displayName: "申请客户", qq: "20002", password: "secret123" });
 
     const result = db.approveRegistrationRequest(request.id, "2群");
 
@@ -220,6 +231,8 @@ describe("customer database", () => {
     expect(result.customer.qq).toBe("20002");
     expect(result.customer.groupName).toBe("2群");
     expect(result.customer.paymentCount).toBe(0);
+    expect(result.customer.hasPortalPassword).toBe(true);
+    expect(db.verifyCustomerPortalPassword(result.customer.id, "secret123")).toBe(true);
     expect(result.request.status).toBe("approved");
     expect(result.request.assignedGroupName).toBe("2群");
   });

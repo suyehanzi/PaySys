@@ -971,6 +971,36 @@ td textarea {
   margin-top: 18px;
 }
 
+.portal-password-section {
+  padding-top: 24px;
+  margin-top: 22px;
+}
+
+.portal-password-section .section-heading {
+  margin-bottom: 24px;
+}
+
+.portal-password-section .eyebrow {
+  margin-bottom: 8px;
+}
+
+.portal-password-section h2 {
+  line-height: 1.25;
+}
+
+.portal-password-form {
+  gap: 18px;
+  margin-top: 2px;
+}
+
+.portal-password-form input {
+  min-height: 54px;
+}
+
+.portal-password-form button {
+  min-height: 48px;
+}
+
 .remaining-text {
   margin-top: 10px;
   color: var(--ink) !important;

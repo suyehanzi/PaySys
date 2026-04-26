@@ -464,6 +464,22 @@ export function AdminApp() {
     }
   }
 
+  async function resetPortalPassword(customer: Customer) {
+    if (!window.confirm(`重设客户「${customer.displayName}」的登录密码？客户下次可用 QQ 进入并重新设置密码。`)) {
+      return;
+    }
+    setBusy(`reset-password-${customer.id}`);
+    try {
+      await readJson(await fetch(`/api/admin/customers/${customer.id}/reset-password`, { method: "POST" }));
+      setNotice("客户密码已重设");
+      await loadState();
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "重设密码失败");
+    } finally {
+      setBusy("");
+    }
+  }
+
   async function deleteCustomerAccount(customer: Customer) {
     if (!window.confirm(`删除客户「${customer.displayName}」？付款记录和访问记录也会一起删除。`)) {
       return;
@@ -1246,6 +1262,15 @@ export function AdminApp() {
                     </td>
                     <td data-label="操作" className="action-cell">
                       <div className="button-row action-buttons">
+                        <button
+                          type="button"
+                          className="ghost compact-button"
+                          onClick={() => resetPortalPassword(customer)}
+                          disabled={busy === `reset-password-${customer.id}`}
+                        >
+                          <Icon name="rotate" />
+                          重设密码
+                        </button>
                         <button
                           type="button"
                           className="ghost compact-button"

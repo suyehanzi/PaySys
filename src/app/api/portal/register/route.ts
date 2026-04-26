@@ -9,8 +9,9 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const registerSchema = z.object({
-  displayName: z.string().trim().min(1, "请输入昵称").max(40, "昵称太长了"),
+  displayName: z.string().trim().min(1, "请填入你的群名字").max(40, "群名字太长了"),
   qq: z.string().min(4, "请输入 QQ 号"),
+  password: z.string().trim().min(6, "密码至少 6 位").max(128, "密码太长"),
 });
 
 export async function POST(request: Request): Promise<NextResponse> {
@@ -28,6 +29,7 @@ export async function POST(request: Request): Promise<NextResponse> {
     const registrationRequest = createRegistrationRequest({
       displayName: parsed.data.displayName,
       qq,
+      password: parsed.data.password,
     });
     const origin = publicOrigin(request);
     await notifyRegistrationRequest({

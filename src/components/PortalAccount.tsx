@@ -139,44 +139,46 @@ export function PortalAccount({ customer, status }: { customer: Customer; status
           {customer.isVip && status === "active" ? null : <span>到期：{formatDateTime(customer.expiresAt)}</span>}
         </div>
 
-        <section className="portal-section">
-          <div className="section-heading">
-            <div>
-              <p className="eyebrow">安全</p>
-              <h2>{hasPortalPassword ? "登录密码" : "设置登录密码"}</h2>
+        {!hasPortalPassword ? (
+          <section className="portal-section portal-password-section">
+            <div className="section-heading">
+              <div>
+                <p className="eyebrow">安全</p>
+                <h2>设置登录密码</h2>
+              </div>
             </div>
-          </div>
-          <form className="stack portal-password-form" onSubmit={savePassword}>
-            <label>
-              <span className="sr-only">新密码</span>
-              <input
-                type="password"
-                value={password}
-                onChange={(event) => setPassword(event.target.value)}
-                autoComplete="new-password"
-                placeholder={hasPortalPassword ? "新密码" : "设置密码"}
-                minLength={6}
-                required
-              />
-            </label>
-            <label>
-              <span className="sr-only">确认密码</span>
-              <input
-                type="password"
-                value={passwordConfirm}
-                onChange={(event) => setPasswordConfirm(event.target.value)}
-                autoComplete="new-password"
-                placeholder="确认密码"
-                minLength={6}
-                required
-              />
-            </label>
-            <button className="secondary" disabled={passwordBusy}>
-              <Icon name="save" />
-              {passwordBusy ? "保存中..." : "保存密码"}
-            </button>
-          </form>
-        </section>
+            <form className="stack portal-password-form" onSubmit={savePassword}>
+              <label>
+                <span className="sr-only">新密码</span>
+                <input
+                  type="password"
+                  value={password}
+                  onChange={(event) => setPassword(event.target.value)}
+                  autoComplete="new-password"
+                  placeholder="设置密码"
+                  minLength={6}
+                  required
+                />
+              </label>
+              <label>
+                <span className="sr-only">确认密码</span>
+                <input
+                  type="password"
+                  value={passwordConfirm}
+                  onChange={(event) => setPasswordConfirm(event.target.value)}
+                  autoComplete="new-password"
+                  placeholder="确认密码"
+                  minLength={6}
+                  required
+                />
+              </label>
+              <button className="secondary" disabled={passwordBusy}>
+                <Icon name="save" />
+                {passwordBusy ? "保存中..." : "保存密码"}
+              </button>
+            </form>
+          </section>
+        ) : null}
 
         <section className="portal-section">
           <div className="section-heading">

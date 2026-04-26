@@ -137,6 +137,8 @@ type RegistrationRequestRow = {
   status: "pending" | "approved" | "rejected";
   assigned_group_name: string | null;
   customer_id: number | null;
+  password_hash?: string | null;
+  password_set_at?: string | null;
   created_at: string;
   updated_at: string;
   processed_at: string | null;
@@ -308,6 +310,15 @@ function migrate(db: Database.Database): void {
   if (!upstreamAccountColumnNames.has("last_error")) {
     db.exec("ALTER TABLE upstream_accounts ADD COLUMN last_error TEXT");
   }
+
+  const registrationRequestColumns = db.prepare("PRAGMA table_info(registration_requests)").all() as Array<{ name: string }>;
+  const registrationRequestColumnNames = new Set(registrationRequestColumns.map((column) => column.name));
+  if (!registrationRequestColumnNames.has("password_hash")) {
+    db.exec("ALTER TABLE registration_requests ADD COLUMN password_hash TEXT NOT NULL DEFAULT ''");
+  }
+  if (!registrationRequestColumnNames.has("password_set_at")) {
+    db.exec("ALTER TABLE registration_requests ADD COLUMN password_set_at TEXT");
+  }
 }
 
 export function getDb(): Database.Database {
@@ -470,6 +481,20 @@ export function setCustomerPortalPassword(customerId: number, password: string):
   return result.changes ? getCustomerById(customerId) : null;
 }
 
+export function resetCustomerPortalPassword(customerId: number): Customer | null {
+  const result = getDb()
+    .prepare(
+      `UPDATE customers
+       SET password_hash = '',
+           password_set_at = NULL,
+           session_version = session_version + 1,
+           updated_at = ?
+       WHERE id = ?`,
+    )
+    .run(nowIso(), customerId);
+  return result.changes ? getCustomerById(customerId) : null;
+}
+
 export function listCustomers(): Customer[] {
   const rows = getDb()
     .prepare(
@@ -565,14 +590,16 @@ export function createCustomer(input: {
   groupName?: string;
   expiresAt?: string;
   notes?: string;
+  portalPasswordHash?: string;
+  portalPasswordSetAt?: string;
 }): Customer {
   const timestamp = nowIso();
   const token = newToken();
   const result = getDb()
     .prepare(
       `INSERT INTO customers
-        (display_name, qq, group_name, token, expires_at, disabled, notes, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, 0, ?, ?, ?)`,
+        (display_name, qq, group_name, token, expires_at, disabled, notes, password_hash, password_set_at, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?)`,
     )
     .run(
       input.displayName.trim(),
@@ -581,6 +608,8 @@ export function createCustomer(input: {
       token,
       input.expiresAt || defaultExpiryIso(),
       input.notes?.trim() || "",
+      input.portalPasswordHash || "",
+      input.portalPasswordHash ? input.portalPasswordSetAt || timestamp : null,
       timestamp,
       timestamp,
     );
@@ -827,33 +856,43 @@ export function getRegistrationRequestById(id: number): RegistrationRequest | nu
   return row ? mapRegistrationRequest(row) : null;
 }
 
-export function createRegistrationRequest(input: { displayName: string; qq: string }): RegistrationRequest {
+export function createRegistrationRequest(input: { displayName: string; qq: string; password?: string }): RegistrationRequest {
   const displayName = input.displayName.trim();
   const qq = input.qq.trim();
-  if (!displayName) throw new Error("昵称不能为空");
+  if (!displayName) throw new Error("群名字不能为空");
   if (!qq) throw new Error("QQ 不能为空");
   if (getCustomerByQq(qq)) {
     throw new Error("这个 QQ 已有账号，请直接登录");
   }
 
   const timestamp = nowIso();
+  const password = input.password?.trim() || "";
+  const passwordHash = password ? hashPortalPassword(password) : "";
+  const passwordSetAt = passwordHash ? timestamp : null;
   const existingPending = getDb()
     .prepare("SELECT * FROM registration_requests WHERE qq = ? AND status = 'pending' ORDER BY id DESC LIMIT 1")
     .get(qq) as RegistrationRequestRow | undefined;
   if (existingPending) {
     getDb()
-      .prepare("UPDATE registration_requests SET display_name = ?, updated_at = ? WHERE id = ?")
-      .run(displayName, timestamp, existingPending.id);
+      .prepare(
+        `UPDATE registration_requests
+         SET display_name = ?,
+             password_hash = ?,
+             password_set_at = ?,
+             updated_at = ?
+         WHERE id = ?`,
+      )
+      .run(displayName, passwordHash || existingPending.password_hash || "", passwordSetAt || existingPending.password_set_at || null, timestamp, existingPending.id);
     return getRegistrationRequestById(existingPending.id)!;
   }
 
   const result = getDb()
     .prepare(
       `INSERT INTO registration_requests
-        (display_name, qq, status, created_at, updated_at)
-       VALUES (?, ?, 'pending', ?, ?)`,
+        (display_name, qq, status, password_hash, password_set_at, created_at, updated_at)
+       VALUES (?, ?, 'pending', ?, ?, ?, ?)`,
     )
-    .run(displayName, qq, timestamp, timestamp);
+    .run(displayName, qq, passwordHash, passwordSetAt, timestamp, timestamp);
   return getRegistrationRequestById(Number(result.lastInsertRowid))!;
 }
 
@@ -876,6 +915,7 @@ export function approveRegistrationRequest(
 
   const db = getDb();
   const transaction = db.transaction(() => {
+    const requestRow = db.prepare("SELECT * FROM registration_requests WHERE id = ?").get(id) as RegistrationRequestRow;
     const existingCustomer = getCustomerByQq(request.qq);
     const customer =
       existingCustomer ||
@@ -885,10 +925,20 @@ export function approveRegistrationRequest(
         groupName: assignedGroupName,
         expiresAt: defaultExpiryIso(0),
         notes: "自助注册申请",
+        portalPasswordHash: requestRow.password_hash || "",
+        portalPasswordSetAt: requestRow.password_set_at || undefined,
       });
 
     if (existingCustomer && existingCustomer.groupName !== assignedGroupName) {
       updateCustomer(existingCustomer.id, { groupName: assignedGroupName });
+    }
+    if (existingCustomer && !existingCustomer.hasPortalPassword && requestRow.password_hash) {
+      db.prepare("UPDATE customers SET password_hash = ?, password_set_at = ?, updated_at = ? WHERE id = ?").run(
+        requestRow.password_hash,
+        requestRow.password_set_at || nowIso(),
+        nowIso(),
+        existingCustomer.id,
+      );
     }
 
     const processedAt = nowIso();

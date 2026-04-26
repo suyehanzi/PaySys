@@ -8,6 +8,8 @@ export function PortalLogin() {
   const [password, setPassword] = useState("");
   const [displayName, setDisplayName] = useState("");
   const [registerQq, setRegisterQq] = useState("");
+  const [registerPassword, setRegisterPassword] = useState("");
+  const [registerPasswordConfirm, setRegisterPasswordConfirm] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [registerNotice, setRegisterNotice] = useState("");
@@ -41,10 +43,13 @@ export function PortalLogin() {
     setError("");
     setRegisterNotice("");
     try {
+      if (registerPassword !== registerPasswordConfirm) {
+        throw new Error("两次密码不一致");
+      }
       const response = await fetch("/api/portal/register", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ displayName, qq: registerQq }),
+        body: JSON.stringify({ displayName, qq: registerQq, password: registerPassword }),
       });
       const body = await response.json().catch(() => ({}));
       if (!response.ok) {
@@ -53,6 +58,8 @@ export function PortalLogin() {
       setRegisterNotice("已提交，等待分配。");
       setDisplayName("");
       setRegisterQq("");
+      setRegisterPassword("");
+      setRegisterPasswordConfirm("");
     } catch (err) {
       setRegisterNotice(err instanceof Error ? err.message : "提交失败");
     } finally {
@@ -107,11 +114,11 @@ export function PortalLogin() {
           {showRegister ? (
             <form className="stack portal-register-form" onSubmit={register}>
               <label>
-                <span className="sr-only">昵称</span>
+                <span className="sr-only">群名字</span>
                 <input
                   value={displayName}
                   onChange={(event) => setDisplayName(event.target.value)}
-                  placeholder="昵称"
+                  placeholder="请填入你的群名字"
                   required
                 />
               </label>
@@ -122,6 +129,30 @@ export function PortalLogin() {
                   onChange={(event) => setRegisterQq(event.target.value)}
                   inputMode="numeric"
                   placeholder="QQ 号"
+                  required
+                />
+              </label>
+              <label>
+                <span className="sr-only">设置密码</span>
+                <input
+                  type="password"
+                  value={registerPassword}
+                  onChange={(event) => setRegisterPassword(event.target.value)}
+                  autoComplete="new-password"
+                  placeholder="设置密码"
+                  minLength={6}
+                  required
+                />
+              </label>
+              <label>
+                <span className="sr-only">确认密码</span>
+                <input
+                  type="password"
+                  value={registerPasswordConfirm}
+                  onChange={(event) => setRegisterPasswordConfirm(event.target.value)}
+                  autoComplete="new-password"
+                  placeholder="确认密码"
+                  minLength={6}
                   required
                 />
               </label>
