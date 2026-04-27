@@ -415,6 +415,26 @@ small {
   flex-wrap: wrap;
 }
 
+.customer-meta-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 4px;
+  flex-wrap: wrap;
+}
+
+.customer-meta-row small {
+  margin-top: 0;
+}
+
+.customer-group-select,
+.bulk-group-select {
+  width: auto;
+  min-width: 92px;
+  min-height: 36px;
+  padding: 7px 10px;
+}
+
 .note-editor {
   margin-top: 8px;
   min-height: 40px;
@@ -695,6 +715,10 @@ small {
 .bulk-actions > span {
   color: var(--blue-dark);
   font-weight: 750;
+}
+
+.bulk-actions .button-row {
+  align-items: center;
 }
 
 .upstream-section {
@@ -1317,10 +1341,15 @@ td textarea {
   }
 
   td input,
-  td textarea {
+  td textarea,
+  td select {
     width: 100%;
     max-width: 100%;
     min-width: 0;
+  }
+
+  .customer-meta-row {
+    align-items: stretch;
   }
 
   .status-cell,

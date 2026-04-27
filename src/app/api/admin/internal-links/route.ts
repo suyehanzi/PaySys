@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { isAdminRequest } from "@/lib/auth";
-import { getUpstreamStatusForGroup, listCustomers, listUpstreamAccounts } from "@/lib/db";
+import { getUpstreamStatusForGroup, listUpstreamAccounts } from "@/lib/db";
 import { jsonError, publicOrigin } from "@/lib/http";
 import { createInternalGroupToken } from "@/lib/internal-links";
 
@@ -18,9 +18,6 @@ export async function GET(request: Request): Promise<NextResponse> {
   const names = new Set(defaultGroups);
   for (const account of accounts) {
     if (account.groupName) names.add(account.groupName);
-  }
-  for (const customer of listCustomers()) {
-    if (customer.groupName) names.add(customer.groupName);
   }
 
   const origin = publicOrigin(request);

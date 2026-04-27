@@ -123,9 +123,10 @@ For automated DB tests, use `PAYSYS_DB_PATH` pointing to a temporary SQLite file
 - Admin reset data keeps notes, clears payments/access logs, resets token, increments session version, and sets expiry to today.
 - Disabled customers cannot renew, reset, get subscription, or fetch `/sub/[token]`.
 - Expired customers cannot get subscription or fetch `/sub/[token]`.
-- Click count shown in admin counts `portal_get_subscription`, not raw client subscription fetches.
+- Click count shown in admin counts raw client subscription fetches: `subscription_fetch`.
 - Renewal defaults in UI are amount `45` and period `180` days.
-- New customer group options currently live in `src/components/AdminApp.tsx` as `defaultGroupOptions = ["1群", "2群"]`.
+- New customer group options currently live in `src/components/AdminApp.tsx` as `defaultGroupOptions = ["1群", "2群", "3群"]`.
+- Admin can switch a customer's group from the customer list, including bulk switching selected customers.
 
 ## Routes
 

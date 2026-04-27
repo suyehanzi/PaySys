@@ -35,7 +35,7 @@ type PaymentDraft = {
 
 type StatusFilter = "all" | "active" | "unpaid" | "expired" | "disabled";
 
-const defaultGroupOptions = ["1群", "2群"];
+const defaultGroupOptions = ["1群", "2群", "3群"];
 const defaultPaymentDraft: PaymentDraft = {
   amount: String(DEFAULT_PAYMENT_AMOUNT),
   periodDays: String(DEFAULT_PAYMENT_PERIOD_DAYS),
@@ -167,6 +167,7 @@ export function AdminApp() {
   const [customerSearch, setCustomerSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [groupFilter, setGroupFilter] = useState("all");
+  const [bulkGroupName, setBulkGroupName] = useState(defaultGroupOptions[0]);
   const [showCreateCustomer, setShowCreateCustomer] = useState(false);
   const [showUpstreamAccounts, setShowUpstreamAccounts] = useState(false);
   const [showAllAccessLogs, setShowAllAccessLogs] = useState(false);
@@ -369,6 +370,17 @@ export function AdminApp() {
     }
   }
 
+  async function changeCustomerGroup(customer: Customer, groupName: string) {
+    const nextGroupName = groupName.trim();
+    if (nextGroupName === customer.groupName) {
+      return;
+    }
+
+    if (await patchCustomer(customer.id, { groupName: nextGroupName })) {
+      setNotice(`已将 ${customer.displayName} 切换到 ${nextGroupName || "未分组"}`);
+    }
+  }
+
   function toggleCustomerSelection(id: number, selected: boolean) {
     setSelectedCustomerIds((current) => {
       const next = new Set(current);
@@ -414,6 +426,36 @@ export function AdminApp() {
       await loadState();
     } catch (error) {
       setNotice(error instanceof Error ? error.message : "批量处理失败");
+    } finally {
+      setBusy("");
+    }
+  }
+
+  async function bulkSetGroup() {
+    if (!selectedCustomers.length) {
+      setNotice("请先选择客户");
+      return;
+    }
+
+    const groupName = bulkGroupName.trim();
+    if (!groupName) {
+      setNotice("请选择群");
+      return;
+    }
+
+    const ids = selectedCustomers.map((customer) => customer.id);
+    setBusy("bulk-group");
+    try {
+      const result = await readJson<{ updated: number }>(await fetch("/api/admin/customers/bulk", {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ ids, groupName }),
+      }));
+      setSelectedCustomerIds(new Set());
+      setNotice(`已切换 ${result.updated} 个客户到 ${groupName}`);
+      await loadState();
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : "批量切换失败");
     } finally {
       setBusy("");
     }
@@ -1125,6 +1167,26 @@ export function AdminApp() {
           <div className="bulk-actions" role="region" aria-label="批量处理客户">
             <span>已选 {selectedCount} 个</span>
             <div className="button-row">
+              <select
+                className="bulk-group-select"
+                value={bulkGroupName}
+                onChange={(event) => setBulkGroupName(event.target.value)}
+                aria-label="批量切换客户群"
+              >
+                {groupOptions.map((groupName) => (
+                  <option key={groupName} value={groupName}>
+                    {groupName}
+                  </option>
+                ))}
+              </select>
+              <button
+                type="button"
+                className="secondary compact-button"
+                onClick={() => void bulkSetGroup()}
+                disabled={busy === "bulk-group"}
+              >
+                切换群
+              </button>
               <button
                 type="button"
                 className="secondary compact-button"
@@ -1199,7 +1261,23 @@ export function AdminApp() {
                         <strong>{customer.displayName}</strong>
                         {pinned ? <span className="badge pinned">刚分配</span> : null}
                       </div>
-                      <small>{customer.qq || "未填 QQ"} · {customer.groupName || "未分组"}</small>
+                      <div className="customer-meta-row">
+                        <small>{customer.qq || "未填 QQ"}</small>
+                        <select
+                          className="customer-group-select"
+                          value={customer.groupName || ""}
+                          onChange={(event) => void changeCustomerGroup(customer, event.target.value)}
+                          aria-label={`${customer.displayName} 所在群`}
+                          disabled={busy === `patch-${customer.id}`}
+                        >
+                          <option value="">未分组</option>
+                          {groupOptions.map((groupName) => (
+                            <option key={groupName} value={groupName}>
+                              {groupName}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
                       <textarea
                         className={`note-editor ${customer.notes.trim() ? "has-note" : ""}`}
                         defaultValue={customer.notes}

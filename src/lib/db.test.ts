@@ -116,6 +116,15 @@ describe("customer database", () => {
     expect(db.getCustomerById(second.id)?.isVip).toBe(true);
   });
 
+  it("moves batches of customers to another group", () => {
+    const first = db.createCustomer({ displayName: "分流一号", groupName: "2群" });
+    const second = db.createCustomer({ displayName: "分流二号", groupName: "2群" });
+
+    expect(db.setCustomersGroup([first.id, second.id], "3群")).toBe(2);
+    expect(db.getCustomerById(first.id)?.groupName).toBe("3群");
+    expect(db.getCustomerById(second.id)?.groupName).toBe("3群");
+  });
+
   it("lists detailed access logs for admin review", () => {
     const customer = db.createCustomer({ displayName: "记录用户", qq: "10003", groupName: "二群" });
     db.logAccess({
@@ -138,17 +147,17 @@ describe("customer database", () => {
     });
   });
 
-  it("summarizes portal subscription clicks and sorts customers by latest pull time", () => {
+  it("summarizes client subscription fetches and sorts customers by latest pull time", () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-04-25T01:00:00.000Z"));
     const older = db.createCustomer({ displayName: "较早拉取", qq: "10004", groupName: "二群" });
     const never = db.createCustomer({ displayName: "未拉取", qq: "10005", groupName: "二群" });
     const newer = db.createCustomer({ displayName: "最新拉取", qq: "10006", groupName: "二群" });
 
-    db.logAccess({ customerId: newer.id, action: "subscription_fetch" });
     db.logAccess({ customerId: older.id, action: "portal_get_subscription" });
+    db.logAccess({ customerId: older.id, action: "subscription_fetch" });
     vi.setSystemTime(new Date("2026-04-25T02:00:00.000Z"));
-    db.logAccess({ customerId: newer.id, action: "portal_get_subscription" });
+    db.logAccess({ customerId: newer.id, action: "subscription_fetch" });
     db.logAccess({ customerId: newer.id, action: "user_refresh" });
 
     const listed = db.listCustomers();

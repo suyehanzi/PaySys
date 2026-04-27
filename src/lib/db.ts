@@ -504,13 +504,13 @@ export function listCustomers(): Customer[] {
           SELECT COUNT(*)
           FROM access_logs
           WHERE access_logs.customer_id = customers.id
-            AND access_logs.action = 'portal_get_subscription'
+            AND access_logs.action = 'subscription_fetch'
         ), 0) AS subscription_clicks,
         (
           SELECT MAX(access_logs.created_at)
           FROM access_logs
           WHERE access_logs.customer_id = customers.id
-            AND access_logs.action = 'portal_get_subscription'
+            AND access_logs.action = 'subscription_fetch'
         ) AS last_subscription_click_at,
         COALESCE((
           SELECT COUNT(*)
@@ -656,6 +656,27 @@ export function setCustomersVip(ids: number[], isVip: boolean): number {
     const update = db.prepare("UPDATE customers SET is_vip = ?, updated_at = ? WHERE id = ?");
     for (const id of uniqueIds) {
       changes += update.run(isVip ? 1 : 0, timestamp, id).changes;
+    }
+    return changes;
+  });
+
+  return transaction();
+}
+
+export function setCustomersGroup(ids: number[], groupName: string): number {
+  const uniqueIds = Array.from(new Set(ids.filter((id) => Number.isInteger(id) && id > 0)));
+  if (!uniqueIds.length) return 0;
+
+  const normalizedGroupName = groupName.trim();
+  if (!normalizedGroupName) throw new Error("群名不能为空");
+
+  const db = getDb();
+  const timestamp = nowIso();
+  const transaction = db.transaction(() => {
+    let changes = 0;
+    const update = db.prepare("UPDATE customers SET group_name = ?, updated_at = ? WHERE id = ?");
+    for (const id of uniqueIds) {
+      changes += update.run(normalizedGroupName, timestamp, id).changes;
     }
     return changes;
   });
