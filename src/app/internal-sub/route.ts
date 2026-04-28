@@ -1,5 +1,6 @@
 import { getUpstreamContentForGroup } from "@/lib/db";
 import { verifyInternalGroupToken } from "@/lib/internal-links";
+import { filterSubscriptionContent } from "@/lib/subscription-filter";
 import { refreshUpstreamForGroup } from "@/lib/upstream";
 
 export const runtime = "nodejs";
@@ -60,10 +61,11 @@ export async function GET(request: Request): Promise<Response> {
     return text("该群订阅缓存为空", 503);
   }
 
-  return new Response(upstream.content, {
+  const content = filterSubscriptionContent(upstream.content);
+  return new Response(content, {
     status: 200,
     headers: {
-      "content-type": subscriptionContentType(upstream.content, upstream.contentType),
+      "content-type": subscriptionContentType(content, upstream.contentType),
       "cache-control": "no-store",
     },
   });

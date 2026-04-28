@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import QRCode from "qrcode";
 import { Icon } from "@/components/Icon";
 import { copyToClipboard } from "@/lib/clipboard";
@@ -17,9 +17,13 @@ export function PortalAccount({ customer, status }: { customer: Customer; status
   const [password, setPassword] = useState("");
   const [passwordConfirm, setPasswordConfirm] = useState("");
   const [passwordBusy, setPasswordBusy] = useState(false);
+  const [subscriptionBusy, setSubscriptionBusy] = useState(false);
+  const [cooldownRemaining, setCooldownRemaining] = useState(0);
 
   const active = status === "active";
-  const canGetSubscription = active && hasPortalPassword;
+  const canAccessSubscription = active && hasPortalPassword;
+  const canGetSubscription = canAccessSubscription && cooldownRemaining === 0 && !subscriptionBusy;
+  const cooldownText = cooldownRemaining > 0 ? `${cooldownRemaining} 秒后可再次获取` : "";
   const statusText =
     status === "active"
       ? customer.isVip
@@ -50,41 +54,77 @@ export function PortalAccount({ customer, status }: { customer: Customer; status
     return `${window.location.origin}${path}`;
   }
 
+  useEffect(() => {
+    if (cooldownRemaining <= 0) {
+      return;
+    }
+
+    const timer = window.setInterval(() => {
+      setCooldownRemaining((current) => Math.max(0, current - 1));
+    }, 1000);
+
+    return () => window.clearInterval(timer);
+  }, [cooldownRemaining]);
+
   async function copySubscription() {
     setNotice("");
     if (!hasPortalPassword) {
       setNotice("请先设置登录密码。");
       return;
     }
-    const response = await fetch("/api/portal/subscription", { method: "POST" });
-    const body = await response.json().catch(() => ({}));
-    if (!response.ok) {
-      setNotice(body.error || "获取失败");
+    if (cooldownRemaining > 0) {
+      setNotice(cooldownText);
       return;
     }
 
-    const subscriptionUrl = subscriptionUrlFromResponse(body);
-    setRevealedUrl(subscriptionUrl);
-    if (!qrDataUrl) {
-      setQrDataUrl(
-        await QRCode.toDataURL(subscriptionUrl, {
-          margin: 1,
-          width: 220,
-          color: {
-            dark: "#172033",
-            light: "#ffffff",
-          },
-        }),
-      );
+    setSubscriptionBusy(true);
+    try {
+      const response = await fetch("/api/portal/subscription", { method: "POST" });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        if (response.status === 429 && typeof body.retryAfterSeconds === "number") {
+          setCooldownRemaining(Math.max(1, body.retryAfterSeconds));
+        }
+        setNotice(body.error || "获取失败");
+        return;
+      }
+
+      const subscriptionUrl = subscriptionUrlFromResponse(body);
+      setRevealedUrl(subscriptionUrl);
+      if (!qrDataUrl) {
+        setQrDataUrl(
+          await QRCode.toDataURL(subscriptionUrl, {
+            margin: 1,
+            width: 220,
+            color: {
+              dark: "#172033",
+              light: "#ffffff",
+            },
+          }),
+        );
+      }
+      setCooldownRemaining(60);
+      const copied = await copyToClipboard(subscriptionUrl);
+      if (copied) {
+        setNotice("订阅链接已复制。");
+        setManualCopy("");
+        return;
+      }
+      setManualCopy(subscriptionUrl);
+      setNotice("请手动复制下方链接。");
+    } finally {
+      setSubscriptionBusy(false);
     }
-    const copied = await copyToClipboard(subscriptionUrl);
-    if (copied) {
-      setNotice("订阅链接已复制。");
-      setManualCopy("");
-      return;
+  }
+
+  function subscriptionButtonText(): string {
+    if (subscriptionBusy) {
+      return "获取中...";
     }
-    setManualCopy(subscriptionUrl);
-    setNotice("请手动复制下方链接。");
+    if (cooldownRemaining > 0) {
+      return `${cooldownRemaining} 秒后可获取`;
+    }
+    return "获取订阅";
   }
 
   async function savePassword(event: FormEvent<HTMLFormElement>) {
@@ -203,7 +243,7 @@ export function PortalAccount({ customer, status }: { customer: Customer; status
               <h2>扫描二维码订阅</h2>
             </div>
           </div>
-          {canGetSubscription && qrDataUrl ? (
+          {canAccessSubscription && qrDataUrl ? (
             <div className="subscribe-qr">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src={qrDataUrl} alt="订阅二维码" />
@@ -222,10 +262,12 @@ export function PortalAccount({ customer, status }: { customer: Customer; status
         </section>
 
         <div className="portal-action">
+          <p className="portal-usage-tip">仅限本人自用，否则可能影响自己的节点效果。</p>
           <button className="primary" onClick={copySubscription} disabled={!canGetSubscription}>
             <Icon name="copy" />
-            获取订阅
+            {subscriptionButtonText()}
           </button>
+          {cooldownText ? <p className="cooldown-hint" role="status">{cooldownText}</p> : null}
         </div>
 
         {notice ? <p className="notice inline" role="status">{notice}</p> : null}

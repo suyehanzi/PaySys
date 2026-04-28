@@ -147,6 +147,19 @@ describe("customer database", () => {
     });
   });
 
+  it("finds the latest access time for a customer action", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-04-25T01:00:00.000Z"));
+    const customer = db.createCustomer({ displayName: "冷却用户", qq: "10009" });
+    db.logAccess({ customerId: customer.id, action: "portal_get_subscription" });
+
+    vi.setSystemTime(new Date("2026-04-25T01:00:30.000Z"));
+    db.logAccess({ customerId: customer.id, action: "portal_get_subscription" });
+    db.logAccess({ customerId: customer.id, action: "subscription_fetch" });
+
+    expect(db.getLatestAccessAt(customer.id, "portal_get_subscription")).toBe("2026-04-25T01:00:30.000Z");
+  });
+
   it("summarizes client subscription fetches and sorts customers by latest pull time", () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-04-25T01:00:00.000Z"));

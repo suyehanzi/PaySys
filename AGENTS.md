@@ -127,6 +127,7 @@ For automated DB tests, use `PAYSYS_DB_PATH` pointing to a temporary SQLite file
 - Renewal defaults in UI are amount `45` and period `180` days.
 - New customer group options currently live in `src/components/AdminApp.tsx` as `defaultGroupOptions = ["1群", "2群", "3群"]`.
 - Admin can switch a customer's group from the customer list, including bulk switching selected customers.
+- Returned subscriptions filter upstream promotional/official-link nodes named `TG群: lilisi_network` and `官址: home.lilisi.cc`.
 
 ## Routes
 

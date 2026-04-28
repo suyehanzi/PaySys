@@ -828,6 +828,19 @@ export function listAccessLogs(limit = 500): AccessLog[] {
   return rows.map(mapAccessLog);
 }
 
+export function getLatestAccessAt(customerId: number, action: string): string | null {
+  const row = getDb()
+    .prepare(
+      `SELECT created_at
+       FROM access_logs
+       WHERE customer_id = ? AND action = ?
+       ORDER BY created_at DESC, id DESC
+       LIMIT 1`,
+    )
+    .get(customerId, action) as { created_at: string } | undefined;
+  return row?.created_at || null;
+}
+
 function pruneRegistrationRequestsByStatus(status: RegistrationRequest["status"], keep = 3): void {
   getDb()
     .prepare(

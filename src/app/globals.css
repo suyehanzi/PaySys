@@ -1058,8 +1058,26 @@ td textarea {
   padding-top: 18px;
 }
 
+.portal-usage-tip {
+  border: 1px solid #f1d58c;
+  border-radius: var(--radius);
+  background: var(--soft-amber);
+  color: #6f4909 !important;
+  padding: 10px 12px;
+  margin: 0 0 12px;
+  font-size: 14px;
+  line-height: 1.45;
+}
+
 .portal-action .primary {
   width: 100%;
+}
+
+.cooldown-hint {
+  margin-top: 10px;
+  color: var(--muted) !important;
+  text-align: center;
+  font-size: 13px;
 }
 
 .internal-test-panel .subscription-box {

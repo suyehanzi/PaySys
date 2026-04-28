@@ -1,6 +1,7 @@
 import { getCustomerByToken, getUpstreamContentForGroup, logAccess } from "@/lib/db";
 import { getCustomerStatus } from "@/lib/customer";
 import { clientIp, userAgent } from "@/lib/http";
+import { filterSubscriptionContent } from "@/lib/subscription-filter";
 import { refreshUpstreamForGroup } from "@/lib/upstream";
 
 export const runtime = "nodejs";
@@ -79,10 +80,11 @@ export async function GET(
     return text("订阅缓存为空，请先在个人页面刷新或联系管理员", 503);
   }
 
-  return new Response(upstream.content, {
+  const content = filterSubscriptionContent(upstream.content);
+  return new Response(content, {
     status: 200,
     headers: {
-      "content-type": subscriptionContentType(upstream.content, upstream.contentType),
+      "content-type": subscriptionContentType(content, upstream.contentType),
       "cache-control": "no-store",
     },
   });

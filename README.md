@@ -148,6 +148,7 @@ Notes:
 - Group-specific upstream account binding.
 - Cached upstream subscription content.
 - Customer subscription link and QR code display.
+- Subscription output cleanup for upstream promotional or official-link nodes.
 - Internal admin-only testing endpoint for group-level subscription validation.
 - Encrypted SQLite backup and restore scripts.
 

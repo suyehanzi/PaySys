@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getCustomerById, getUpstreamStatusForGroup, logAccess } from "@/lib/db";
+import { getCustomerById, getLatestAccessAt, getUpstreamStatusForGroup, logAccess } from "@/lib/db";
 import { getCustomerStatus } from "@/lib/customer";
 import { clientIp, jsonError, publicOrigin, userAgent } from "@/lib/http";
 import { readCookie, USER_SESSION_COOKIE, verifyUserSessionValue } from "@/lib/user-auth";
@@ -7,6 +7,17 @@ import { refreshUpstreamForGroup } from "@/lib/upstream";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+
+const SUBSCRIPTION_COOLDOWN_SECONDS = 60;
+const PORTAL_SUBSCRIPTION_ACTION = "portal_get_subscription";
+
+function retryAfterSeconds(lastAccessAt: string | null): number {
+  if (!lastAccessAt) return 0;
+  const lastAccessTime = new Date(lastAccessAt).getTime();
+  if (!Number.isFinite(lastAccessTime)) return 0;
+  const elapsedSeconds = Math.floor((Date.now() - lastAccessTime) / 1000);
+  return Math.max(0, SUBSCRIPTION_COOLDOWN_SECONDS - elapsedSeconds);
+}
 
 export async function POST(request: Request): Promise<NextResponse> {
   const session = verifyUserSessionValue(readCookie(request, USER_SESSION_COOKIE));
@@ -25,18 +36,19 @@ export async function POST(request: Request): Promise<NextResponse> {
     return jsonError("请先设置登录密码", 403);
   }
 
-  logAccess({
-    customerId: customer.id,
-    action: "portal_get_subscription",
-    ip: clientIp(request),
-    userAgent: userAgent(request),
-  });
-
   const status = getCustomerStatus(customer);
   if (status !== "active") {
     const message =
       status === "disabled" ? "订阅已禁用" : status === "unpaid" ? "订阅未开通，请联系管理员登记" : "订阅已过期";
     return jsonError(message, 403);
+  }
+
+  const retryAfter = retryAfterSeconds(getLatestAccessAt(customer.id, PORTAL_SUBSCRIPTION_ACTION));
+  if (retryAfter > 0) {
+    return NextResponse.json(
+      { ok: false, error: `请 ${retryAfter} 秒后再获取`, retryAfterSeconds: retryAfter },
+      { status: 429, headers: { "retry-after": String(retryAfter) } },
+    );
   }
 
   if (!getUpstreamStatusForGroup(customer.groupName).hasContent) {
@@ -46,6 +58,13 @@ export async function POST(request: Request): Promise<NextResponse> {
       return jsonError("订阅缓存为空，自动刷新失败，请联系管理员", 503);
     }
   }
+
+  logAccess({
+    customerId: customer.id,
+    action: PORTAL_SUBSCRIPTION_ACTION,
+    ip: clientIp(request),
+    userAgent: userAgent(request),
+  });
 
   const origin = publicOrigin(request);
   const subscriptionPath = `/sub/${customer.token}`;
